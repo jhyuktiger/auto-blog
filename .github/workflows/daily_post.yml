@@ -2,9 +2,8 @@ name: Daily Auto Blog Post
 
 on:
   schedule:
-    # 매일 오전 9시 KST (00:00 UTC)
     - cron: "0 0 * * *"
-  workflow_dispatch:  # 수동 실행 버튼
+  workflow_dispatch:
 
 jobs:
   post:
@@ -26,7 +25,9 @@ jobs:
       - name: Run auto blog generator
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          BLOGGER_CREDENTIALS_JSON: ${{ secrets.BLOGGER_CREDENTIALS_JSON }}
+          BLOGGER_REFRESH_TOKEN: ${{ secrets.BLOGGER_REFRESH_TOKEN }}
+          BLOGGER_CLIENT_ID: ${{ secrets.BLOGGER_CLIENT_ID }}
+          BLOGGER_CLIENT_SECRET: ${{ secrets.BLOGGER_CLIENT_SECRET }}
           KO_BLOG_ID: ${{ secrets.KO_BLOG_ID }}
           EN_BLOG_ID: ${{ secrets.EN_BLOG_ID }}
         run: python main.py
