@@ -9,15 +9,17 @@ import json
 import random
 import datetime
 import anthropic
-import requests
-from google.oauth2 import service_account
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
 # ── Config ──────────────────────────────────────────────
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
-BLOGGER_CREDENTIALS_JSON = os.environ["BLOGGER_CREDENTIALS_JSON"]  # service account JSON string
-KO_BLOG_ID = os.environ["KO_BLOG_ID"]   # 한국어 블로그 ID
-EN_BLOG_ID = os.environ["EN_BLOG_ID"]   # 영어 블로그 ID
+BLOGGER_REFRESH_TOKEN = os.environ["BLOGGER_REFRESH_TOKEN"]
+BLOGGER_CLIENT_ID = os.environ["BLOGGER_CLIENT_ID"]
+BLOGGER_CLIENT_SECRET = os.environ["BLOGGER_CLIENT_SECRET"]
+KO_BLOG_ID = os.environ["KO_BLOG_ID"]
+EN_BLOG_ID = os.environ["EN_BLOG_ID"]
 
 # ── Topic Pools (고단가 키워드 중심) ────────────────────
 KO_TOPICS = [
@@ -126,13 +128,17 @@ Respond in JSON:
     return json.loads(raw[start:end])
 
 
-# ── Google Blogger API 발행 ──────────────────────────────
+# ── Google Blogger API (OAuth) ───────────────────────────
 def get_blogger_service():
-    creds_dict = json.loads(BLOGGER_CREDENTIALS_JSON)
-    creds = service_account.Credentials.from_service_account_info(
-        creds_dict,
+    creds = Credentials(
+        token=None,
+        refresh_token=BLOGGER_REFRESH_TOKEN,
+        client_id=BLOGGER_CLIENT_ID,
+        client_secret=BLOGGER_CLIENT_SECRET,
+        token_uri="https://oauth2.googleapis.com/token",
         scopes=["https://www.googleapis.com/auth/blogger"]
     )
+    creds.refresh(Request())
     return build("blogger", "v3", credentials=creds)
 
 
