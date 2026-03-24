@@ -116,7 +116,7 @@ Respond in JSON:
 
     message = client.messages.create(
         model="claude-haiku-4-5-20251001",  # 비용 절감용 Haiku
-        max_tokens=4096,
+        max_tokens=8096,
         system=system,
         messages=[{"role": "user", "content": user_prompt}]
     )
