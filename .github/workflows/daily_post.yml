@@ -28,6 +28,9 @@ jobs:
           BLOGGER_REFRESH_TOKEN: ${{ secrets.BLOGGER_REFRESH_TOKEN }}
           BLOGGER_CLIENT_ID: ${{ secrets.BLOGGER_CLIENT_ID }}
           BLOGGER_CLIENT_SECRET: ${{ secrets.BLOGGER_CLIENT_SECRET }}
+          EN_BLOGGER_REFRESH_TOKEN: ${{ secrets.EN_BLOGGER_REFRESH_TOKEN }}
+          EN_BLOGGER_CLIENT_ID: ${{ secrets.EN_BLOGGER_CLIENT_ID }}
+          EN_BLOGGER_CLIENT_SECRET: ${{ secrets.EN_BLOGGER_CLIENT_SECRET }}
           KO_BLOG_ID: ${{ secrets.KO_BLOG_ID }}
           EN_BLOG_ID: ${{ secrets.EN_BLOG_ID }}
         run: python main.py
