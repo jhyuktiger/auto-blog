@@ -13,7 +13,10 @@ import textwrap
 import anthropic
 from gtts import gTTS
 from PIL import Image, ImageDraw, ImageFont
-from moviepy.editor import ImageClip, AudioFileClip, CompositeVideoClip
+try:
+    from moviepy.editor import ImageClip, AudioFileClip, CompositeVideoClip
+except ImportError:
+    from moviepy import ImageClip, AudioFileClip, CompositeVideoClip
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
