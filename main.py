@@ -1,6 +1,6 @@
 """
-Auto Blog Generator v2.1
-트렌드 기반 + Evaluator + 중복 방지
+Auto Blog Generator v2.2
+블로그 발행 → 숏츠 자동 생성 연동
 """
 
 import os
@@ -22,6 +22,14 @@ EN_BLOGGER_CLIENT_ID = os.environ["EN_BLOGGER_CLIENT_ID"]
 EN_BLOGGER_CLIENT_SECRET = os.environ["EN_BLOGGER_CLIENT_SECRET"]
 KO_BLOG_ID = os.environ["KO_BLOG_ID"]
 EN_BLOG_ID = os.environ["EN_BLOG_ID"]
+
+# 숏츠 관련 secrets (없으면 숏츠 스킵)
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+YOUTUBE_REFRESH_TOKEN = os.environ.get("YOUTUBE_REFRESH_TOKEN", "")
+YOUTUBE_CLIENT_ID = os.environ.get("YOUTUBE_CLIENT_ID", "")
+YOUTUBE_CLIENT_SECRET = os.environ.get("YOUTUBE_CLIENT_SECRET", "")
+
+SHORTS_ENABLED = all([GEMINI_API_KEY, YOUTUBE_REFRESH_TOKEN, YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET])
 
 def get_published_titles(service, blog_id):
     try:
@@ -138,9 +146,22 @@ def generate_post(topic, lang):
     else:
         system = "You are a professional blogger. Write SEO-optimized HTML blog posts. 1000-1500 words, use h2/h3/p/ul/li tags, no investment advice, no false info."
         prompt = f"Today: {today}\n{'[Trending topic]' if is_trend else ''}\nTitle: {topic['title']}\nKeywords: {', '.join(topic['keywords'])}\n\nPure JSON only:\n{{\"title\": \"title\", \"html_content\": \"HTML content\", \"labels\": [\"tag1\",\"tag2\",\"tag3\"]}}"
-    msg = client.messages.create(model="claude-haiku-4-5-20251001", max_tokens=8096, system=system, messages=[{"role": "user", "content": prompt}])
-    raw = msg.content[0].text
-    return json.loads(raw[raw.find("{"):raw.rfind("}")+1])
+    for attempt in range(3):
+        msg = client.messages.create(model="claude-haiku-4-5-20251001", max_tokens=8096, system=system, messages=[{"role": "user", "content": prompt}])
+        raw = msg.content[0].text
+        try:
+            return json.loads(raw[raw.find("{"):raw.rfind("}")+1])
+        except json.JSONDecodeError:
+            try:
+                import re
+                cleaned = raw[raw.find("{"):raw.rfind("}")+1]
+                cleaned = re.sub(r'\\(?!["\\/bfnrt])', r'\\\\', cleaned)
+                return json.loads(cleaned)
+            except Exception:
+                print(f"⚠️ JSON 파싱 실패 (시도 {attempt+1}/3), 재생성...")
+                time.sleep(2)
+    title = topic["title"]
+    return {"title": title, "html_content": f"<h2>{title}</h2><p>준비 중입니다.</p>", "labels": topic.get("keywords", ["AI"])[:3]}
 
 def evaluate_post(post, lang):
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -166,8 +187,41 @@ def publish_post(service, blog_id, title, html_content, labels):
     result = service.posts().insert(blogId=blog_id, body=body, isDraft=False).execute()
     return result.get("url", "")
 
+# ─────────────────────────────────────────────
+# 숏츠 연동 (블로그 발행 후 자동 실행)
+# ─────────────────────────────────────────────
+def try_generate_shorts(title, content, lang, blog_url):
+    """숏츠 생성 시도 - 실패해도 블로그 발행에 영향 없음"""
+    if not SHORTS_ENABLED:
+        print("⏭️ 숏츠 스킵 (YouTube secrets 없음)")
+        return None
+    try:
+        # 환경변수 임시 설정 (shorts_generator가 os.environ 직접 읽으므로)
+        os.environ["GEMINI_API_KEY"] = GEMINI_API_KEY
+        os.environ["YOUTUBE_REFRESH_TOKEN"] = YOUTUBE_REFRESH_TOKEN
+        os.environ["YOUTUBE_CLIENT_ID"] = YOUTUBE_CLIENT_ID
+        os.environ["YOUTUBE_CLIENT_SECRET"] = YOUTUBE_CLIENT_SECRET
+
+        from shorts_generator import generate_shorts
+        shorts_url = generate_shorts(title, content, lang, blog_url)
+        print(f"🎬 숏츠 완료: {shorts_url}")
+        return shorts_url
+    except Exception as e:
+        print(f"⚠️ 숏츠 실패 (블로그는 정상 발행됨): {e}")
+        return None
+
+def html_to_plain(html_content):
+    """HTML 태그 제거해서 숏츠 스크립트용 텍스트 추출"""
+    import re
+    text = re.sub(r'<[^>]+>', ' ', html_content)
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text[:800]
+
 def main():
-    print("🚀 Auto Blog Generator v2.1")
+    print("🚀 Auto Blog Generator v2.2 (블로그 + 숏츠)")
+    print(f"🎬 숏츠 자동화: {'✅ 활성화' if SHORTS_ENABLED else '⏭️ 비활성화'}")
+
+    # ── 한국어 블로그 ──
     ko_svc = get_blogger_service(KO_BLOGGER_REFRESH_TOKEN, KO_BLOGGER_CLIENT_ID, KO_BLOGGER_CLIENT_SECRET)
     ko_pub = get_published_titles(ko_svc, KO_BLOG_ID)
     ko_topic = select_topic("ko", ko_pub)
@@ -178,8 +232,13 @@ def main():
         time.sleep(2)
         ko_post = generate_post(ko_topic, "ko")
     ko_url = publish_post(ko_svc, KO_BLOG_ID, ko_post["title"], ko_post["html_content"], ko_post["labels"])
-    print(f"✅ KO: {ko_url}")
+    print(f"✅ KO 블로그: {ko_url}")
 
+    # 한국어 숏츠 생성
+    ko_plain = html_to_plain(ko_post["html_content"])
+    try_generate_shorts(ko_post["title"], ko_plain, "ko", ko_url)
+
+    # ── 영어 블로그 ──
     en_svc = get_blogger_service(EN_BLOGGER_REFRESH_TOKEN, EN_BLOGGER_CLIENT_ID, EN_BLOGGER_CLIENT_SECRET)
     en_pub = get_published_titles(en_svc, EN_BLOG_ID)
     en_topic = select_topic("en", en_pub)
@@ -190,8 +249,13 @@ def main():
         time.sleep(2)
         en_post = generate_post(en_topic, "en")
     en_url = publish_post(en_svc, EN_BLOG_ID, en_post["title"], en_post["html_content"], en_post["labels"])
-    print(f"✅ EN: {en_url}")
-    print("🎉 완료!")
+    print(f"✅ EN 블로그: {en_url}")
+
+    # 영어 숏츠 생성
+    en_plain = html_to_plain(en_post["html_content"])
+    try_generate_shorts(en_post["title"], en_plain, "en", en_url)
+
+    print("🎉 전체 완료!")
 
 if __name__ == "__main__":
     main()
