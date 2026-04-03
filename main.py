@@ -194,44 +194,44 @@ def select_topic(lang, published_titles):
     return {"title": f"{base['title']} ({today})", "keywords": base["keywords"], "category": base["category"], "is_trend": False}
 
 def get_pexels_image(keywords, lang):
-    """Pexels API로 블로그 썸네일 이미지 URL 가져오기"""
+    """Pixabay API로 블로그 썸네일 이미지 URL 가져오기"""
     try:
         import urllib.request
         import urllib.parse
         import json as _json
-        PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY", "")
-        if not PEXELS_API_KEY:
+        PIXABAY_API_KEY = os.environ.get("PIXABAY_API_KEY", "")
+        if not PIXABAY_API_KEY:
             return None
         query = " ".join(keywords[:2]) if lang == "en" else keywords[0]
-        # 한국어 키워드는 영어로 변환
         ko_to_en = {
             "AI": "artificial intelligence", "자동화": "automation technology",
             "비트코인": "bitcoin", "투자": "investment finance",
             "주식": "stock market", "ETF": "ETF finance",
-            "일론 머스크": "Elon Musk", "젠슨 황": "Jensen Huang Nvidia",
-            "샘 알트만": "Sam Altman AI", "워런 버핏": "Warren Buffett",
+            "일론 머스크": "Elon Musk", "젠슨 황": "technology",
+            "샘 알트만": "artificial intelligence", "워런 버핏": "finance",
             "동기부여": "motivation success", "자기계발": "self improvement",
-            "노후": "retirement planning", "재테크": "personal finance",
+            "노후": "retirement", "재테크": "personal finance",
+            "바이브코딩": "programming coding", "Claude": "technology",
+            "ChatGPT": "artificial intelligence", "시니어": "senior lifestyle",
         }
         for ko, en in ko_to_en.items():
             if ko in query:
                 query = en
                 break
         encoded = urllib.parse.quote(query)
-        url = f"https://api.pexels.com/v1/search?query={encoded}&per_page=5&orientation=landscape"
-        req = urllib.request.Request(url, headers={"Authorization": PEXELS_API_KEY.strip()})
+        url = f"https://pixabay.com/api/?key={PIXABAY_API_KEY.strip()}&q={encoded}&image_type=photo&orientation=horizontal&per_page=10&safesearch=true"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=10) as resp:
             data = _json.loads(resp.read())
-        photos = data.get("photos", [])
-        if photos:
+        hits = data.get("hits", [])
+        if hits:
             import random
-            photo = random.choice(photos[:5])
-            img_url = photo["src"]["large"]
-            photographer = photo.get("photographer", "Pexels")
-            print(f"🖼️ 블로그 이미지: {query} ({photographer})")
-            return {"url": img_url, "credit": photographer}
+            photo = random.choice(hits[:10])
+            img_url = photo["webformatURL"]
+            print(f"🖼️ 블로그 이미지: {query} (Pixabay)")
+            return {"url": img_url, "credit": "Pixabay"}
     except Exception as e:
-        print(f"⚠️ Pexels 이미지 실패: {e}")
+        print(f"⚠️ Pixabay 이미지 실패: {e}")
     return None
 
 def generate_post(topic, lang):
