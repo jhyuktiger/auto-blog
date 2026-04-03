@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install system dependencies (FFmpeg + 한국어 폰트)
+      - name: Install system dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y ffmpeg fonts-nanum
@@ -27,7 +27,7 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r requirements.txt
 
-      - name: Run auto blog generator
+      - name: Run auto blog + shorts generator
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           BLOGGER_REFRESH_TOKEN: ${{ secrets.BLOGGER_REFRESH_TOKEN }}
@@ -38,13 +38,8 @@ jobs:
           EN_BLOGGER_CLIENT_SECRET: ${{ secrets.EN_BLOGGER_CLIENT_SECRET }}
           KO_BLOG_ID: ${{ secrets.KO_BLOG_ID }}
           EN_BLOG_ID: ${{ secrets.EN_BLOG_ID }}
-        run: python main.py
-
-      - name: Run shorts generator
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
-        run: python shorts_generator.py
+        run: python main.py
