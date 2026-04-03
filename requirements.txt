@@ -5,7 +5,7 @@ google-api-python-client>=2.118.0
 # 숏츠 생성용
 gtts>=2.5.0
 Pillow>=10.0.0
-moviepy>=1.0.3
+moviepy==1.0.3
 google-genai>=0.8.0
 
 # 트렌드 수집용
