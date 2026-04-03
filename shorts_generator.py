@@ -61,38 +61,54 @@ Pure JSON only (no other text):
 
 
 # ─────────────────────────────────────────────
-# 2. 배경 이미지 생성 (Gemini → fallback 그라디언트)
+# 2. 배경 이미지 생성 (Unsplash 무료 → fallback 그라디언트)
 # ─────────────────────────────────────────────
 def generate_background_image(title, lang):
-    """✅ 수정: gemini-2.5-flash-image 모델 사용"""
+    """Unsplash 무료 이미지로 배경 생성 (API 키 불필요)"""
     try:
-        from google import genai
-        from google.genai import types
-        client = genai.Client(api_key=GEMINI_API_KEY)
-        prompt = (
-            f"Professional YouTube Shorts background image for topic: '{title}'. "
-            "Dark gradient, modern tech/finance aesthetic, no text, "
-            "abstract geometric shapes, blue purple tones, vertical 9:16 ratio"
-        )
-        response = client.models.generate_content(
-            model="gemini-2.5-flash-image",  # ✅ 수정된 모델명
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_modalities=["IMAGE", "TEXT"]
-            )
-        )
-        img_path = f"/tmp/bg_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.png"
-        for part in response.candidates[0].content.parts:
-            if hasattr(part, 'inline_data') and part.inline_data:
-                img_data = base64.b64decode(part.inline_data.data)
-                with open(img_path, 'wb') as f:
-                    f.write(img_data)
-                img = Image.open(img_path).resize((1080, 1920))
-                img.save(img_path)
-                print("🖼️ Gemini 이미지 생성 완료")
-                return img_path
+        import urllib.request
+        import urllib.parse
+
+        keywords_map = {
+            "AI": "artificial intelligence technology",
+            "비트코인": "bitcoin cryptocurrency",
+            "투자": "investment finance",
+            "주식": "stock market",
+            "ETF": "finance investment",
+            "코인": "cryptocurrency blockchain",
+            "자동화": "technology automation",
+            "블로그": "content creator",
+            "수익": "business success",
+        }
+        query = "technology business"
+        for ko, en in keywords_map.items():
+            if ko in title:
+                query = en
+                break
+        if lang == "en":
+            for word in ["bitcoin", "crypto", "AI", "stock", "invest", "ETF", "automation"]:
+                if word.lower() in title.lower():
+                    query = word + " technology"
+                    break
+
+        encoded = urllib.parse.quote(query)
+        url = f"https://source.unsplash.com/1080x1920/?{encoded}"
+        img_path = f"/tmp/bg_unsplash_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.jpg"
+
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=10) as response:
+            with open(img_path, 'wb') as f:
+                f.write(response.read())
+
+        img = Image.open(img_path).resize((1080, 1920)).convert('RGBA')
+        dark = Image.new('RGBA', (1080, 1920), (0, 0, 0, 140))
+        img = Image.alpha_composite(img, dark).convert('RGB')
+        img.save(img_path)
+        print(f"🖼️ Unsplash 이미지 완료: {query}")
+        return img_path
     except Exception as e:
-        print(f"⚠️ Gemini 실패 → 그라디언트 배경 사용: {e}")
+        print(f"⚠️ Unsplash 실패 → 그라디언트 배경 사용: {e}")
     return create_gradient_background(title)
 
 
