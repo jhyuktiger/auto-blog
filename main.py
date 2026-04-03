@@ -66,45 +66,72 @@ def get_trending_en():
         return None
 
 KO_TOPICS = [
+    # ── AI/자동화 ──
     {"title": "Claude API로 자동화 도구 만드는 법 (초보자 완전 가이드)", "keywords": ["Claude API", "AI 자동화", "바이브코딩"], "category": "AI"},
     {"title": "바이브코딩이란? 2026년 개발자 없이 앱 만드는 방법", "keywords": ["바이브코딩", "Cursor", "bolt.new"], "category": "AI"},
     {"title": "ChatGPT vs Claude 실전 비교 어떤 AI가 더 유용한가", "keywords": ["ChatGPT", "Claude", "AI 비교"], "category": "AI"},
     {"title": "Cursor AI로 코딩 10배 빠르게 하는 실전 팁", "keywords": ["Cursor AI", "AI 코딩", "개발 생산성"], "category": "AI"},
     {"title": "AI로 월 100만원 버는 현실적인 방법 5가지", "keywords": ["AI 부업", "AI 수익화", "AI 활용"], "category": "AI"},
     {"title": "n8n 자동화로 반복 업무 없애는 방법 무료", "keywords": ["n8n", "업무 자동화", "노코드"], "category": "AI"},
+    {"title": "구글 애드센스 승인 받는 방법 2026년 최신 가이드", "keywords": ["애드센스 승인", "구글 애드센스", "블로그 수익"], "category": "AI"},
+    {"title": "AI 이미지 생성 도구 비교 Midjourney vs DALL-E vs Gemini", "keywords": ["AI 이미지", "Midjourney", "이미지 생성"], "category": "AI"},
+    {"title": "챗GPT로 하루 2시간 업무 줄이는 실전 프롬프트 10가지", "keywords": ["챗GPT 프롬프트", "업무 효율", "AI 활용"], "category": "AI"},
+    {"title": "노코드로 나만의 앱 만들기 bubble vs flutterflow 비교", "keywords": ["노코드", "bubble", "앱 개발"], "category": "AI"},
+    # ── 투자/재테크 ──
     {"title": "비트코인 2026 전망 반감기 이후 실제로 어떻게 될까", "keywords": ["비트코인 전망", "BTC 2026", "암호화폐"], "category": "투자"},
     {"title": "달러 ETF로 환율 헤지하는 방법 완전 정리", "keywords": ["달러 ETF", "환율 헤지", "달러 투자"], "category": "투자"},
     {"title": "미국 주식 배당금 세금 완벽 정리 2026 기준", "keywords": ["미국 주식 세금", "배당 세금", "해외 주식"], "category": "투자"},
     {"title": "S&P500 ETF 매달 적립식 투자 10년 시뮬레이션", "keywords": ["S&P500", "ETF 투자", "적립식"], "category": "투자"},
-    {"title": "코인 선물거래 리스크 관리 청산 당하지 않는 법", "keywords": ["선물거래", "코인 리스크", "청산 방지"], "category": "투자"},
     {"title": "ISA 계좌 완전 정복 세금 혜택 최대로 쓰는 방법", "keywords": ["ISA 계좌", "절세", "재테크"], "category": "투자"},
-    {"title": "구글 애드센스 승인 받는 방법 2026년 최신 가이드", "keywords": ["애드센스 승인", "구글 애드센스", "블로그 수익"], "category": "AI"},
-    {"title": "GitHub Actions로 업무 자동화하는 방법 완전 정리", "keywords": ["GitHub Actions", "CI/CD", "자동화"], "category": "AI"},
-    {"title": "파이썬으로 텔레그램 봇 만드는 법 30분 완성", "keywords": ["텔레그램 봇", "파이썬", "자동화"], "category": "AI"},
     {"title": "ETF vs 개별주식 초보 투자자를 위한 완전 비교", "keywords": ["ETF", "개별주식", "투자 초보"], "category": "투자"},
     {"title": "연금저축펀드 완전 정복 세액공제 최대로 받는 법", "keywords": ["연금저축", "세액공제", "노후준비"], "category": "투자"},
-    {"title": "AI 이미지 생성 도구 비교 Midjourney vs DALL-E vs Gemini", "keywords": ["AI 이미지", "Midjourney", "이미지 생성"], "category": "AI"},
+    {"title": "월급쟁이 재테크 로드맵 30대가 꼭 해야 할 5가지", "keywords": ["재테크 로드맵", "30대 투자", "월급 재테크"], "category": "투자"},
+    {"title": "트럼프 관세 충격 한국 주식시장 어떻게 대응할까", "keywords": ["트럼프 관세", "한국 주식", "시장 대응"], "category": "투자"},
+    # ── CEO/인물 인사이트 ──
+    {"title": "일론 머스크가 말하는 성공의 조건 핵심 명언 정리", "keywords": ["일론 머스크", "성공 명언", "동기부여"], "category": "인물"},
+    {"title": "젠슨 황 엔비디아 CEO의 AI 미래 예측 2026 요약", "keywords": ["젠슨 황", "엔비디아", "AI 미래"], "category": "인물"},
+    {"title": "샘 알트만이 말하는 AGI 시대 살아남는 법", "keywords": ["샘 알트만", "OpenAI", "AGI"], "category": "인물"},
+    {"title": "팔란티어 CEO 알렉스 카프 젊은이들에게 주는 조언", "keywords": ["팔란티어", "알렉스 카프", "성공 조언"], "category": "인물"},
+    {"title": "워런 버핏 최신 주주서한 핵심 투자 철학 정리", "keywords": ["워런 버핏", "주주서한", "투자 철학"], "category": "인물"},
+    {"title": "손정의 소프트뱅크 AI 투자 전략 2026 완전 분석", "keywords": ["손정의", "소프트뱅크", "AI 투자"], "category": "인물"},
+    # ── 동기부여/자기계발 ──
+    {"title": "하루 1시간으로 인생이 바뀌는 루틴 만드는 법", "keywords": ["하루 루틴", "자기계발", "습관 만들기"], "category": "자기계발"},
+    {"title": "성공한 사람들이 절대 하지 않는 5가지 습관", "keywords": ["성공 습관", "자기계발", "동기부여"], "category": "자기계발"},
+    {"title": "번아웃 극복하는 방법 실리콘밸리 CEO들의 비결", "keywords": ["번아웃", "극복 방법", "멘탈 관리"], "category": "자기계발"},
+    {"title": "돈보다 중요한 것 세계 최고 부자들이 후회하는 것들", "keywords": ["부자 마인드", "인생 후회", "성공의 의미"], "category": "자기계발"},
+    # ── 시니어 타겟 ──
+    {"title": "60대 노후 준비 지금 당장 시작해야 할 3가지", "keywords": ["노후 준비", "60대 재테크", "연금"], "category": "시니어"},
+    {"title": "스마트폰으로 돈 버는 법 시니어도 할 수 있는 부업", "keywords": ["시니어 부업", "스마트폰 수익", "노후 수입"], "category": "시니어"},
+    {"title": "카카오페이 토스 안전하게 쓰는 방법 완전 정리", "keywords": ["카카오페이", "토스", "금융 앱 사용법"], "category": "시니어"},
 ]
 
 EN_TOPICS = [
+    # ── AI/Automation ──
     {"title": "Vibe Coding in 2026: Build Apps Without Writing Code", "keywords": ["vibe coding", "no-code", "AI development"], "category": "AI"},
     {"title": "Claude API Tutorial: Automate Any Task in 30 Minutes", "keywords": ["Claude API", "AI automation", "Python"], "category": "AI"},
     {"title": "Best AI Tools for Side Hustle in 2026 Ranked", "keywords": ["AI tools", "side hustle", "make money AI"], "category": "AI"},
-    {"title": "Cursor vs GitHub Copilot: Which AI Coding Tool Wins in 2026", "keywords": ["Cursor AI", "GitHub Copilot", "AI coding"], "category": "AI"},
     {"title": "How to Make 1000 Per Month Using Claude and n8n Automation", "keywords": ["Claude automation", "n8n", "passive income AI"], "category": "AI"},
-    {"title": "Build a Crypto Dashboard with AI in One Day No Code", "keywords": ["crypto dashboard", "vibe coding", "bolt.new"], "category": "AI"},
+    {"title": "Google AdSense Approval Guide 2026: What Actually Works", "keywords": ["Google AdSense", "AdSense approval", "blog monetization"], "category": "AI"},
+    {"title": "10 ChatGPT Prompts That Actually Save You Hours Every Day", "keywords": ["ChatGPT prompts", "productivity", "AI workflow"], "category": "AI"},
+    {"title": "AI Agents Explained: How to Automate Your Entire Workflow in 2026", "keywords": ["AI agents", "workflow automation", "n8n"], "category": "AI"},
+    # ── Finance ──
     {"title": "Bitcoin Halving Cycle Explained: What History Says About 2026", "keywords": ["Bitcoin halving", "BTC price prediction", "crypto investing"], "category": "Finance"},
     {"title": "S&P 500 vs Bitcoin: 10-Year Return Comparison", "keywords": ["S&P 500", "Bitcoin investment", "portfolio"], "category": "Finance"},
-    {"title": "How to Invest in US Stocks from Korea Step-by-Step", "keywords": ["invest US stocks Korea", "overseas investing", "ETF"], "category": "Finance"},
-    {"title": "Dollar Cost Averaging Bitcoin: 3-Year Simulation Results", "keywords": ["DCA Bitcoin", "crypto strategy", "dollar cost averaging"], "category": "Finance"},
     {"title": "Best High-Dividend ETFs for Passive Income in 2026", "keywords": ["dividend ETF", "passive income", "high yield"], "category": "Finance"},
-    {"title": "Crypto Fear and Greed Index: How to Use It to Time the Market", "keywords": ["fear greed index", "crypto timing", "market sentiment"], "category": "Finance"},
-    {"title": "Google AdSense Approval Guide 2026: What Actually Works", "keywords": ["Google AdSense", "AdSense approval", "blog monetization"], "category": "AI"},
-    {"title": "How to Use GitHub Actions for Complete Workflow Automation", "keywords": ["GitHub Actions", "automation", "CI/CD"], "category": "AI"},
-    {"title": "Best Passive Income Ideas Using AI Tools in 2026", "keywords": ["passive income", "AI tools", "make money online"], "category": "Finance"},
+    {"title": "Trump Tariffs Impact: How to Protect Your Portfolio Right Now", "keywords": ["Trump tariffs", "portfolio protection", "market volatility"], "category": "Finance"},
+    {"title": "Dollar Cost Averaging Bitcoin: 3-Year Simulation Results", "keywords": ["DCA Bitcoin", "crypto strategy", "dollar cost averaging"], "category": "Finance"},
     {"title": "Index Fund vs ETF: Which Is Better for Long-Term Investing", "keywords": ["index fund", "ETF investing", "long term"], "category": "Finance"},
-    {"title": "AI Image Generation Showdown: Midjourney vs DALL-E vs Gemini", "keywords": ["AI image generation", "Midjourney", "DALL-E"], "category": "AI"},
-    {"title": "How to Build a Telegram Bot with Python in 30 Minutes", "keywords": ["Telegram bot", "Python", "automation"], "category": "AI"},
+    # ── CEO Insights ──
+    {"title": "Elon Musk on Success: Key Lessons From His Latest Interviews", "keywords": ["Elon Musk", "success lessons", "entrepreneur mindset"], "category": "People"},
+    {"title": "Jensen Huang Predicts the Future of AI: What He Said in 2026", "keywords": ["Jensen Huang", "Nvidia", "AI future"], "category": "People"},
+    {"title": "Sam Altman on AGI: How to Survive and Thrive in the AI Era", "keywords": ["Sam Altman", "OpenAI", "AGI future"], "category": "People"},
+    {"title": "Warren Buffett Latest Letter: Core Investment Wisdom for 2026", "keywords": ["Warren Buffett", "investment wisdom", "shareholder letter"], "category": "People"},
+    {"title": "Palantir CEO Alex Karp Advice for Young People: Full Summary", "keywords": ["Palantir", "Alex Karp", "career advice"], "category": "People"},
+    # ── Motivation/Growth ──
+    {"title": "5 Habits Billionaires Share That Most People Ignore", "keywords": ["billionaire habits", "success mindset", "daily routine"], "category": "Motivation"},
+    {"title": "How to Build a Morning Routine That Actually Changes Your Life", "keywords": ["morning routine", "productivity", "success habits"], "category": "Motivation"},
+    {"title": "Burnout Recovery: What Silicon Valley CEOs Do Differently", "keywords": ["burnout recovery", "CEO mindset", "mental health"], "category": "Motivation"},
+    {"title": "What the World Most Successful People Regret Most", "keywords": ["success regrets", "life lessons", "mindset shift"], "category": "Motivation"},
 ]
 
 def is_duplicate(topic, published_titles):
