@@ -61,24 +61,31 @@ Pure JSON only (no other text):
 
 
 # ─────────────────────────────────────────────
-# 2. 배경 이미지 생성 (Unsplash 무료 → fallback 그라디언트)
+# 2. 배경 이미지 생성 (Pexels → fallback 그라디언트)
 # ─────────────────────────────────────────────
 def generate_background_image(title, lang):
-    """Unsplash 무료 이미지로 배경 생성 (API 키 불필요)"""
+    """Pexels API로 배경 이미지 생성"""
     try:
         import urllib.request
         import urllib.parse
+        import json as _json
+
+        PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY", "")
+        if not PEXELS_API_KEY:
+            raise Exception("PEXELS_API_KEY 없음")
 
         keywords_map = {
-            "AI": "artificial intelligence technology",
+            "AI": "artificial intelligence",
             "비트코인": "bitcoin cryptocurrency",
             "투자": "investment finance",
-            "주식": "stock market",
-            "ETF": "finance investment",
+            "주식": "stock market trading",
+            "ETF": "finance wall street",
             "코인": "cryptocurrency blockchain",
             "자동화": "technology automation",
-            "블로그": "content creator",
-            "수익": "business success",
+            "블로그": "content creator laptop",
+            "수익": "business success money",
+            "재테크": "finance money investment",
+            "연금": "retirement savings",
         }
         query = "technology business"
         for ko, en in keywords_map.items():
@@ -86,29 +93,39 @@ def generate_background_image(title, lang):
                 query = en
                 break
         if lang == "en":
-            for word in ["bitcoin", "crypto", "AI", "stock", "invest", "ETF", "automation"]:
+            for word in ["bitcoin", "crypto", "stock", "invest", "ETF", "automation", "AI"]:
                 if word.lower() in title.lower():
                     query = word + " technology"
                     break
 
         encoded = urllib.parse.quote(query)
-        url = f"https://source.unsplash.com/1080x1920/?{encoded}"
-        img_path = f"/tmp/bg_unsplash_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.jpg"
+        url = f"https://api.pexels.com/v1/search?query={encoded}&per_page=15&orientation=portrait"
+        req = urllib.request.Request(url, headers={"Authorization": PEXELS_API_KEY})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = _json.loads(resp.read())
 
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=10) as response:
-            with open(img_path, 'wb') as f:
-                f.write(response.read())
+        photos = data.get("photos", [])
+        if not photos:
+            raise Exception("검색 결과 없음")
 
-        img = Image.open(img_path).resize((1080, 1920)).convert('RGBA')
-        dark = Image.new('RGBA', (1080, 1920), (0, 0, 0, 140))
-        img = Image.alpha_composite(img, dark).convert('RGB')
+        import random
+        photo = random.choice(photos[:10])
+        img_url = photo["src"]["portrait"]
+
+        img_path = f"/tmp/bg_pexels_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.jpg"
+        req2 = urllib.request.Request(img_url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req2, timeout=15) as resp2:
+            with open(img_path, "wb") as f:
+                f.write(resp2.read())
+
+        img = Image.open(img_path).resize((1080, 1920)).convert("RGBA")
+        dark = Image.new("RGBA", (1080, 1920), (0, 0, 0, 150))
+        img = Image.alpha_composite(img, dark).convert("RGB")
         img.save(img_path)
-        print(f"🖼️ Unsplash 이미지 완료: {query}")
+        print(f"🖼️ Pexels 이미지 완료: {query}")
         return img_path
     except Exception as e:
-        print(f"⚠️ Unsplash 실패 → 그라디언트 배경 사용: {e}")
+        print(f"⚠️ Pexels 실패 → 그라디언트 배경 사용: {e}")
     return create_gradient_background(title)
 
 
