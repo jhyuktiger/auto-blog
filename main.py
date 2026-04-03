@@ -193,6 +193,47 @@ def select_topic(lang, published_titles):
     base = KO_TOPICS[0] if lang == "ko" else EN_TOPICS[0]
     return {"title": f"{base['title']} ({today})", "keywords": base["keywords"], "category": base["category"], "is_trend": False}
 
+def get_pexels_image(keywords, lang):
+    """Pexels API로 블로그 썸네일 이미지 URL 가져오기"""
+    try:
+        import urllib.request
+        import urllib.parse
+        import json as _json
+        PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY", "")
+        if not PEXELS_API_KEY:
+            return None
+        query = " ".join(keywords[:2]) if lang == "en" else keywords[0]
+        # 한국어 키워드는 영어로 변환
+        ko_to_en = {
+            "AI": "artificial intelligence", "자동화": "automation technology",
+            "비트코인": "bitcoin", "투자": "investment finance",
+            "주식": "stock market", "ETF": "ETF finance",
+            "일론 머스크": "Elon Musk", "젠슨 황": "Jensen Huang Nvidia",
+            "샘 알트만": "Sam Altman AI", "워런 버핏": "Warren Buffett",
+            "동기부여": "motivation success", "자기계발": "self improvement",
+            "노후": "retirement planning", "재테크": "personal finance",
+        }
+        for ko, en in ko_to_en.items():
+            if ko in query:
+                query = en
+                break
+        encoded = urllib.parse.quote(query)
+        url = f"https://api.pexels.com/v1/search?query={encoded}&per_page=5&orientation=landscape"
+        req = urllib.request.Request(url, headers={"Authorization": PEXELS_API_KEY.strip()})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = _json.loads(resp.read())
+        photos = data.get("photos", [])
+        if photos:
+            import random
+            photo = random.choice(photos[:5])
+            img_url = photo["src"]["large"]
+            photographer = photo.get("photographer", "Pexels")
+            print(f"🖼️ 블로그 이미지: {query} ({photographer})")
+            return {"url": img_url, "credit": photographer}
+    except Exception as e:
+        print(f"⚠️ Pexels 이미지 실패: {e}")
+    return None
+
 def generate_post(topic, lang):
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     today = datetime.date.today().strftime("%Y년 %m월 %d일" if lang == "ko" else "%B %d, %Y")
@@ -239,7 +280,14 @@ def get_blogger_service(rt, ci, cs):
     creds.refresh(Request())
     return build("blogger", "v3", credentials=creds)
 
-def publish_post(service, blog_id, title, html_content, labels):
+def publish_post(service, blog_id, title, html_content, labels, img_data=None):
+    # 이미지 상단 삽입
+    if img_data:
+        img_html = f'''<div style="text-align:center;margin-bottom:24px;">
+<img src="{img_data["url"]}" alt="{title}" style="max-width:100%;border-radius:8px;"/>
+<p style="font-size:12px;color:#888;">Photo by {img_data["credit"]} on Pexels</p>
+</div>'''
+        html_content = img_html + html_content
     body = {"title": title, "content": html_content, "labels": labels}
     result = service.posts().insert(blogId=blog_id, body=body, isDraft=False).execute()
     return result.get("url", "")
@@ -288,7 +336,8 @@ def main():
         print("⚠️ 재생성")
         time.sleep(2)
         ko_post = generate_post(ko_topic, "ko")
-    ko_url = publish_post(ko_svc, KO_BLOG_ID, ko_post["title"], ko_post["html_content"], ko_post["labels"])
+    ko_img = get_pexels_image(ko_topic["keywords"], "ko")
+    ko_url = publish_post(ko_svc, KO_BLOG_ID, ko_post["title"], ko_post["html_content"], ko_post["labels"], ko_img)
     print(f"✅ KO 블로그: {ko_url}")
 
     # 한국어 숏츠 생성
@@ -305,7 +354,8 @@ def main():
         print("⚠️ 재생성")
         time.sleep(2)
         en_post = generate_post(en_topic, "en")
-    en_url = publish_post(en_svc, EN_BLOG_ID, en_post["title"], en_post["html_content"], en_post["labels"])
+    en_img = get_pexels_image(en_topic["keywords"], "en")
+    en_url = publish_post(en_svc, EN_BLOG_ID, en_post["title"], en_post["html_content"], en_post["labels"], en_img)
     print(f"✅ EN 블로그: {en_url}")
 
     # 영어 숏츠 생성
