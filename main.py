@@ -107,30 +107,60 @@ EN_TOPICS = [
     {"title": "How to Build a Telegram Bot with Python in 30 Minutes", "keywords": ["Telegram bot", "Python", "automation"], "category": "AI"},
 ]
 
+def is_duplicate(topic, published_titles):
+    """키워드 기반 유사도 체크 - 핵심 키워드가 2개 이상 겹치면 중복"""
+    title_lower = topic["title"].lower()
+    for pub in published_titles:
+        pub_lower = pub.lower()
+        # 제목 완전 일치
+        if title_lower == pub_lower:
+            return True
+        # 핵심 키워드 겹침 체크
+        matches = sum(1 for kw in topic["keywords"] if kw.lower() in pub_lower)
+        if matches >= 2:
+            return True
+    return False
+
 def select_topic(lang, published_titles):
     if lang == "ko":
         trends = get_trending_ko()
         if trends:
             for kw in trends:
                 t = f"{kw} 완전 정리 2026년 최신 가이드"
-                if t not in published_titles:
-                    return {"title": t, "keywords": [kw, "트렌드", "최신"], "category": "트렌드", "is_trend": True}
+                candidate = {"title": t, "keywords": [kw, "트렌드", "최신"], "category": "트렌드", "is_trend": True}
+                if not is_duplicate(candidate, published_titles):
+                    return candidate
         pool = KO_TOPICS[:]
         random.shuffle(pool)
-        for topic in pool:
-            if topic["title"] not in published_titles:
+        # 카테고리 다양성: 최근 발행 카테고리 파악
+        recent = published_titles[:5]
+        recent_cats = []
+        for pub in recent:
+            for t in KO_TOPICS:
+                if t["title"] in pub:
+                    recent_cats.append(t["category"])
+        # 덜 나온 카테고리 우선
+        for topic in sorted(pool, key=lambda x: recent_cats.count(x["category"])):
+            if not is_duplicate(topic, published_titles):
                 return topic
     else:
         trends = get_trending_en()
         if trends:
             for kw in trends:
                 t = f"{kw}: Complete Guide for 2026"
-                if t not in published_titles:
-                    return {"title": t, "keywords": [kw, "trending", "2026"], "category": "Trending", "is_trend": True}
+                candidate = {"title": t, "keywords": [kw, "trending", "2026"], "category": "Trending", "is_trend": True}
+                if not is_duplicate(candidate, published_titles):
+                    return candidate
         pool = EN_TOPICS[:]
         random.shuffle(pool)
-        for topic in pool:
-            if topic["title"] not in published_titles:
+        recent = published_titles[:5]
+        recent_cats = []
+        for pub in recent:
+            for t in EN_TOPICS:
+                if t["title"] in pub:
+                    recent_cats.append(t["category"])
+        for topic in sorted(pool, key=lambda x: recent_cats.count(x["category"])):
+            if not is_duplicate(topic, published_titles):
                 return topic
     today = datetime.date.today().strftime("%Y-%m-%d")
     base = KO_TOPICS[0] if lang == "ko" else EN_TOPICS[0]
