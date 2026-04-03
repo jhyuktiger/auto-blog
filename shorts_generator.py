@@ -38,7 +38,8 @@ def generate_shorts_script(blog_title, blog_content, lang):
 제목: {blog_title}
 내용: {blog_content[:600]}
 
-규칙: 5문장, 첫문장=강렬한 훅, 마지막="자세한 내용은 링크 참고!", 구어체
+타겟: 40~60대 직장인/시니어, AI·재테크 정보에 관심 있는 분들
+규칙: 5문장, 첫문장=강렬한 훅(숫자나 충격적 사실로 시작), 마지막="자세한 내용은 링크 참고!", 구어체
 
 순수 JSON만 (다른 텍스트 없이):
 {{"title": "숏츠제목(50자이내)", "script": "전체대본", "sentences": ["문장1","문장2","문장3","문장4","문장5"], "hashtags": ["#태그1","#태그2","#태그3","#태그4","#태그5"]}}"""
@@ -47,17 +48,66 @@ def generate_shorts_script(blog_title, blog_content, lang):
 Title: {blog_title}
 Content: {blog_content[:600]}
 
-Rules: 5 sentences, first=strong hook, last="Check the link!", conversational
+Target: 40-60s professionals interested in AI and finance
+Rules: 5 sentences, first=strong hook (start with number or shocking fact), last="Check the link!", conversational
 
 Pure JSON only (no other text):
 {{"title": "Shorts title(50 chars)", "script": "Full script", "sentences": ["s1","s2","s3","s4","s5"], "hashtags": ["#tag1","#tag2","#tag3","#tag4","#tag5"]}}"""
 
-    msg = client.messages.create(
-        model="claude-haiku-4-5-20251001", max_tokens=1024,
-        messages=[{"role": "user", "content": prompt}]
-    )
-    raw = msg.content[0].text.strip()
+    for attempt in range(3):
+        msg = client.messages.create(
+            model="claude-haiku-4-5-20251001", max_tokens=1024,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        raw = msg.content[0].text.strip()
+        try:
+            script_data = json.loads(raw[raw.find("{"):raw.rfind("}")+1])
+            # ── 하네스: 스크립트 품질 평가 ──
+            score = evaluate_script(script_data, lang, client)
+            print(f"📊 스크립트 품질: {score}/10")
+            if score >= 6:
+                return script_data
+            print(f"⚠️ 스크립트 재생성 (시도 {attempt+1}/3)")
+        except Exception:
+            print(f"⚠️ JSON 파싱 실패 (시도 {attempt+1}/3)")
     return json.loads(raw[raw.find("{"):raw.rfind("}")+1])
+
+def evaluate_script(script_data, lang, client):
+    """하네스: 스크립트 품질 자동 평가"""
+    try:
+        if lang == "ko":
+            prompt = f"""유튜브 숏츠 스크립트 품질을 0~10점으로 평가해주세요.
+
+제목: {script_data.get("title", "")}
+스크립트: {script_data.get("script", "")}
+
+평가 기준:
+1. 첫 문장이 강렬한 훅인가? (숫자/충격적 사실로 시작)
+2. 40~60대 타겟에 맞는 주제와 말투인가?
+3. 30초 안에 핵심을 전달하는가?
+4. 자연스러운 구어체인가?
+
+숫자만 응답 (0~10)"""
+        else:
+            prompt = f"""Rate this YouTube Shorts script 0-10.
+
+Title: {script_data.get("title", "")}
+Script: {script_data.get("script", "")}
+
+Criteria:
+1. Strong hook in first sentence? (number or shocking fact)
+2. Appropriate for 40-60s professionals?
+3. Delivers key message within 30 seconds?
+4. Natural conversational tone?
+
+Number only (0-10)"""
+        msg = client.messages.create(
+            model="claude-haiku-4-5-20251001", max_tokens=10,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return int(msg.content[0].text.strip())
+    except:
+        return 7
 
 
 # ─────────────────────────────────────────────
