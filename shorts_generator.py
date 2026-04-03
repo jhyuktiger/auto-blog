@@ -212,32 +212,24 @@ def wrap_text(text, font, max_width):
     return lines
 
 
-def create_subtitle_frame(sentence, title, frame_size=(1080, 1920), bg_color=None):
-    """
-    ✅ PIL로 자막 프레임 이미지 생성
-    - 상단: 제목
-    - 하단: 자막 문장
-    - 반투명 배경 박스
-    """
+def create_subtitle_frame(sentence, title, keywords=None, frame_size=(1080, 1920), bg_color=None):
+    """PIL로 자막 프레임 생성 - 상단 제목 + 중앙 키워드 카드 + 하단 자막"""
     width, height = frame_size
     img = Image.new('RGBA', (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
 
-    # ── 제목 영역 (상단) ──
-    title_font = get_font(58)
-    title_max_w = width - 160
-    title_lines = wrap_text(title[:50], title_font, title_max_w)
-
-    title_line_h = 70
+    # ── 상단 제목 ──
+    title_font = get_font(56)
+    title_max_w = width - 140
+    title_lines = wrap_text(title[:45], title_font, title_max_w)
+    title_line_h = 68
     title_block_h = len(title_lines) * title_line_h + 20
-    title_y_start = 300
+    title_y_start = 220
 
-    # 제목 배경 박스
     draw.rectangle(
-        [60, title_y_start - 15, width - 60, title_y_start + title_block_h + 15],
-        fill=(0, 0, 0, 140)
+        [50, title_y_start - 20, width - 50, title_y_start + title_block_h + 20],
+        fill=(0, 0, 0, 170)
     )
-
     for i, line in enumerate(title_lines):
         bbox = title_font.getbbox(line)
         text_w = bbox[2] - bbox[0]
@@ -245,49 +237,68 @@ def create_subtitle_frame(sentence, title, frame_size=(1080, 1920), bg_color=Non
         y = title_y_start + i * title_line_h
         draw_text_with_outline(draw, line, x, y, title_font,
                                 text_color=(255, 255, 255, 255),
-                                outline_color=(0, 0, 0, 255),
-                                outline_width=3)
+                                outline_color=(0, 0, 0, 255), outline_width=3)
 
     # 구분선
-    draw.line([(80, title_y_start + title_block_h + 25),
-               (width - 80, title_y_start + title_block_h + 25)],
-              fill=(100, 150, 255, 200), width=3)
+    title_bottom = title_y_start + title_block_h + 30
+    draw.line([(80, title_bottom), (width - 80, title_bottom)],
+              fill=(80, 140, 255, 180), width=2)
 
-    # ── 자막 영역 (하단) ──
-    sub_font = get_font(52)
-    sub_max_w = width - 160
-    sub_lines = wrap_text(sentence, sub_font, sub_max_w)
+    # ── 중앙 포인트 카드 (핵심 문구 강조) ──
+    center_y = height // 2 - 80
+    point_font = get_font(62)
+    # 문장에서 핵심 숫자나 키워드 추출
+    import re
+    numbers = re.findall(r'[\$₩]?[\d,]+[만억천%\+]?[\w]*', sentence)
+    center_text = numbers[0] if numbers else sentence[:12]
 
-    sub_line_h = 65
-    sub_block_h = len(sub_lines) * sub_line_h + 30
-    sub_y_base = height - 280 - sub_block_h
+    ct_bbox = point_font.getbbox(center_text)
+    ct_w = ct_bbox[2] - ct_bbox[0]
+    ct_h = ct_bbox[3] - ct_bbox[1]
+    pad = 40
 
-    # 자막 배경 박스 (반투명)
-    draw.rectangle(
-        [60, sub_y_base - 20, width - 60, sub_y_base + sub_block_h + 20],
-        fill=(0, 0, 0, 170)
+    # 강조 박스 (파란 테두리)
+    draw.rounded_rectangle(
+        [(width//2 - ct_w//2 - pad, center_y - pad),
+         (width//2 + ct_w//2 + pad, center_y + ct_h + pad)],
+        radius=20, fill=(20, 40, 120, 200), outline=(80, 140, 255, 230), width=3
     )
+    draw_text_with_outline(draw, center_text,
+                            width//2 - ct_w//2, center_y,
+                            point_font,
+                            text_color=(255, 220, 50, 255),
+                            outline_color=(0, 0, 0, 255), outline_width=4)
 
+    # ── 하단 자막 ──
+    sub_font = get_font(50)
+    sub_max_w = width - 140
+    sub_lines = wrap_text(sentence, sub_font, sub_max_w)
+    sub_line_h = 62
+    sub_block_h = len(sub_lines) * sub_line_h + 30
+    sub_y_base = height - 260 - sub_block_h
+
+    draw.rectangle(
+        [50, sub_y_base - 20, width - 50, sub_y_base + sub_block_h + 20],
+        fill=(0, 0, 0, 180)
+    )
     for i, line in enumerate(sub_lines):
         bbox = sub_font.getbbox(line)
         text_w = bbox[2] - bbox[0]
         x = (width - text_w) // 2
         y = sub_y_base + 15 + i * sub_line_h
         draw_text_with_outline(draw, line, x, y, sub_font,
-                                text_color=(255, 255, 100, 255),  # 노란색 자막
-                                outline_color=(0, 0, 0, 255),
-                                outline_width=3)
+                                text_color=(255, 255, 100, 255),
+                                outline_color=(0, 0, 0, 255), outline_width=3)
 
     # ── 채널명 (최하단) ──
-    ch_font = get_font(36)
+    ch_font = get_font(34)
     ch_name = "AI Insight Labs"
     ch_bbox = ch_font.getbbox(ch_name)
     ch_w = ch_bbox[2] - ch_bbox[0]
     ch_x = (width - ch_w) // 2
-    draw_text_with_outline(draw, ch_name, ch_x, height - 180, ch_font,
-                            text_color=(150, 180, 255, 220),
-                            outline_color=(0, 0, 0, 180),
-                            outline_width=2)
+    draw_text_with_outline(draw, ch_name, ch_x, height - 160, ch_font,
+                            text_color=(150, 180, 255, 200),
+                            outline_color=(0, 0, 0, 160), outline_width=2)
 
     img_path = f"/tmp/frame_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}_{id(sentence)}.png"
     img.save(img_path, 'PNG')
