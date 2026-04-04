@@ -204,15 +204,57 @@ def get_pexels_image(keywords, lang):
             return None
         query = " ".join(keywords[:2]) if lang == "en" else keywords[0]
         ko_to_en = {
-            "AI": "artificial intelligence", "자동화": "automation technology",
-            "비트코인": "bitcoin", "투자": "investment finance",
-            "주식": "stock market", "ETF": "ETF finance",
-            "일론 머스크": "Elon Musk", "젠슨 황": "technology",
-            "샘 알트만": "artificial intelligence", "워런 버핏": "finance",
-            "동기부여": "motivation success", "자기계발": "self improvement",
-            "노후": "retirement", "재테크": "personal finance",
-            "바이브코딩": "programming coding", "Claude": "technology",
-            "ChatGPT": "artificial intelligence", "시니어": "senior lifestyle",
+            # AI/기술
+            "AI": "artificial intelligence technology",
+            "인공지능": "artificial intelligence brain",
+            "자동화": "automation robot technology",
+            "바이브코딩": "programmer coding laptop",
+            "Claude": "artificial intelligence computer",
+            "ChatGPT": "chatbot AI technology",
+            "코딩": "programming code laptop",
+            "앱": "smartphone app mobile",
+            "소프트웨어": "software development",
+            # 투자/금융
+            "비트코인": "bitcoin cryptocurrency coins",
+            "코인": "cryptocurrency digital money",
+            "주식": "stock market trading charts",
+            "ETF": "investment portfolio finance",
+            "투자": "investment money growth",
+            "재테크": "money saving finance",
+            "달러": "dollar currency money",
+            "배당": "dividend income money",
+            "연금": "retirement pension savings",
+            "노후": "retirement elderly couple",
+            "절세": "tax saving finance",
+            # CEO/인물
+            "일론 머스크": "electric car tesla technology",
+            "젠슨 황": "GPU chip semiconductor",
+            "샘 알트만": "AI startup office",
+            "워런 버핏": "investment stocks newspaper",
+            "팔란티어": "data analytics office",
+            "손정의": "technology investment startup",
+            # 동기부여/자기계발
+            "번아웃": "burnout stress tired office",
+            "동기부여": "motivation inspiration success",
+            "자기계발": "personal growth books reading",
+            "성공": "success achievement winner",
+            "습관": "morning routine healthy lifestyle",
+            "루틴": "morning routine workout",
+            "멘탈": "mental health mindfulness calm",
+            # 시니어/생활
+            "시니어": "senior couple happy lifestyle",
+            "스마트폰": "smartphone elderly hands",
+            "카카오": "mobile payment smartphone",
+            # 뉴스/시사
+            "트럼프": "business politics office",
+            "관세": "trade shipping containers port",
+            "경제": "economy business growth chart",
+            "금리": "bank interest rate finance",
+            # 블로그/수익
+            "애드센스": "laptop blogger writing",
+            "블로그": "blogger writing laptop coffee",
+            "수익": "income money laptop online",
+            "부업": "side hustle freelance laptop",
         }
         for ko, en in ko_to_en.items():
             if ko in query:
