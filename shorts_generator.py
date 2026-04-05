@@ -200,21 +200,21 @@ def create_gradient_background(title=""):
 
     for y in range(height):
         ratio = y / height
-        r = int(5 + ratio * 15)
-        g = int(5 + ratio * 10)
-        b = int(40 + ratio * 60)
+        r = int(240 + ratio * 10)
+        g = int(210 + ratio * 5)
+        b = int(240 + ratio * 10)
         draw.line([(0, y), (width, y)], fill=(r, g, b))
 
-    for cx, cy, cr, ca in [(200, 400, 300, 30), (900, 800, 200, 20),
-                            (100, 1500, 250, 25), (800, 1200, 180, 15)]:
+    for cx, cy, cr, ca in [(200, 400, 300, 40), (900, 800, 200, 35),
+                            (100, 1500, 250, 40), (800, 1200, 180, 30)]:
         overlay = Image.new('RGBA', (width, height), (0, 0, 0, 0))
         ov_draw = ImageDraw.Draw(overlay)
-        ov_draw.ellipse([cx-cr, cy-cr, cx+cr, cy+cr], fill=(100, 150, 255, ca))
+        ov_draw.ellipse([cx-cr, cy-cr, cx+cr, cy+cr], fill=(220, 180, 240, ca))
         img = Image.alpha_composite(img.convert('RGBA'), overlay).convert('RGB')
 
     draw = ImageDraw.Draw(img)
-    draw.line([(80, 280), (1000, 280)], fill=(100, 150, 255), width=2)
-    draw.line([(80, 1600), (1000, 1600)], fill=(100, 150, 255), width=2)
+    draw.line([(80, 280), (1000, 280)], fill=(255, 150, 180), width=3)
+    draw.line([(80, 1600), (1000, 1600)], fill=(255, 150, 180), width=3)
 
     img_path = f"/tmp/bg_grad_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.png"
     img.save(img_path)
@@ -324,12 +324,12 @@ def create_subtitle_frame(sentence, title, keywords=None, frame_size=(1080, 1920
     draw.rounded_rectangle(
         [(width//2 - ct_w//2 - pad, center_y - pad),
          (width//2 + ct_w//2 + pad, center_y + ct_h + pad)],
-        radius=20, fill=(20, 40, 120, 200), outline=(80, 140, 255, 230), width=3
+        radius=20, fill=(255, 220, 235, 220), outline=(255, 100, 150, 230), width=3
     )
     draw_text_with_outline(draw, center_text,
                             width//2 - ct_w//2, center_y,
                             point_font,
-                            text_color=(255, 220, 50, 255),
+                            text_color=(200, 50, 100, 255),
                             outline_color=(0, 0, 0, 255), outline_width=4)
 
     # ── 하단 자막 ──
