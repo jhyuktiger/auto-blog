@@ -42,7 +42,7 @@ def send_telegram(message):
         import urllib.request
         import urllib.parse
         text = urllib.parse.quote(message)
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage?chat_id={TELEGRAM_CHAT_ID}&text={text}&parse_mode=HTML"
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage?chat_id={TELEGRAM_CHAT_ID}&text={text}"
         urllib.request.urlopen(url, timeout=10)
         print("📱 텔레그램 알림 발송 완료")
     except Exception as e:
