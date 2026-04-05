@@ -486,8 +486,6 @@ def main():
     try_generate_shorts(en_post["title"], en_plain, "en", en_url)
 
     print("🎉 전체 완료!")
-    send_telegram("🎉 <b>오늘의 자동화 완료!</b>
-KO + EN 블로그 + 숏츠 발행 완료 ✅")
-
+    send_telegram("🎉 <b>오늘의 자동화 완료! KO + EN 블로그 + 숏츠 발행 완료 ✅")
 if __name__ == "__main__":
     main()
