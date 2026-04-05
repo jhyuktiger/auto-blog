@@ -63,10 +63,7 @@ Pure JSON only (no other text):
         # 피드백 반영해서 재생성
         current_prompt = prompt
         if last_feedback:
-            current_prompt += f"
-
-[이전 평가 피드백 - 반드시 반영하세요]
-{last_feedback}"
+         current_prompt += f"\n[이전 평가 피드백 - 반드시 반영하세요]\n{last_feedback}"
 
         msg = client.messages.create(
             model="claude-haiku-4-5-20251001", max_tokens=1024,
