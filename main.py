@@ -31,6 +31,23 @@ YOUTUBE_CLIENT_SECRET = os.environ.get("YOUTUBE_CLIENT_SECRET", "")
 
 SHORTS_ENABLED = all([GEMINI_API_KEY, YOUTUBE_REFRESH_TOKEN, YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET])
 
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
+
+def send_telegram(message):
+    """텔레그램 알림 발송"""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+    try:
+        import urllib.request
+        import urllib.parse
+        text = urllib.parse.quote(message)
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage?chat_id={TELEGRAM_CHAT_ID}&text={text}&parse_mode=HTML"
+        urllib.request.urlopen(url, timeout=10)
+        print("📱 텔레그램 알림 발송 완료")
+    except Exception as e:
+        print(f"⚠️ 텔레그램 실패: {e}")
+
 def get_published_titles(service, blog_id):
     try:
         result = service.posts().list(blogId=blog_id, maxResults=50).execute()
@@ -403,6 +420,9 @@ def main():
     ko_img = get_pexels_image(ko_topic["keywords"], "ko")
     ko_url = publish_post(ko_svc, KO_BLOG_ID, ko_post["title"], ko_post["html_content"], ko_post["labels"], ko_img)
     print(f"✅ KO 블로그: {ko_url}")
+    send_telegram(f"""✅ <b>어머나! 발행 완료</b>
+📝 {ko_post["title"]}
+🔗 {ko_url}""")
 
     # 한국어 숏츠 생성
     ko_plain = html_to_plain(ko_post["html_content"])
@@ -421,12 +441,17 @@ def main():
     en_img = get_pexels_image(en_topic["keywords"], "en")
     en_url = publish_post(en_svc, EN_BLOG_ID, en_post["title"], en_post["html_content"], en_post["labels"], en_img)
     print(f"✅ EN 블로그: {en_url}")
+    send_telegram(f"""✅ <b>OhmyG 발행 완료</b>
+📝 {en_post["title"]}
+🔗 {en_url}""")
 
     # 영어 숏츠 생성
     en_plain = html_to_plain(en_post["html_content"])
     try_generate_shorts(en_post["title"], en_plain, "en", en_url)
 
     print("🎉 전체 완료!")
+    send_telegram("🎉 <b>오늘의 자동화 완료!</b>
+KO + EN 블로그 + 숏츠 발행 완료 ✅")
 
 if __name__ == "__main__":
     main()
