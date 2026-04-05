@@ -2,7 +2,8 @@ name: Daily Auto Blog Post
 
 on:
   schedule:
-    - cron: "0 0,12 * * *"
+    - cron: "0 23 * * *"
+    - cron: "30 9 * * *"
   workflow_dispatch:
 
 jobs:
