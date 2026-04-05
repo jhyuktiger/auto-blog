@@ -159,82 +159,71 @@ def evaluate_script(script_data, lang, client):
 # 2. 배경 이미지 생성 (Pexels → fallback 그라디언트)
 # ─────────────────────────────────────────────
 def generate_background_image(title, lang):
-    """Pexels API로 배경 이미지 생성"""
+    """고정 배경 이미지 사용 (bg_default.png)"""
+    try:
+        # GitHub Actions에서 레포 루트의 bg_default.png 사용
+        repo_bg = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bg_default.png")
+        if os.path.exists(repo_bg):
+            img = Image.open(repo_bg).resize((1080, 1920)).convert("RGB")
+            img_path = f"/tmp/bg_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.png"
+            img.save(img_path)
+            print("🖼️ 고정 배경 이미지 사용")
+            return img_path
+    except Exception as e:
+        print(f"⚠️ 배경 이미지 실패: {e}")
+    return create_gradient_background(title)
+
+def get_pixabay_images(keywords, lang, count=3):
+    """Pixabay에서 관련 이미지 여러장 가져오기"""
     try:
         import urllib.request
         import urllib.parse
         import json as _json
-
-        PEXELS_API_KEY = os.environ.get("PEXELS_API_KEY", "")
-        if not PEXELS_API_KEY:
-            raise Exception("PEXELS_API_KEY 없음")
-
-        keywords_map = {
+        PIXABAY_API_KEY = os.environ.get("PIXABAY_API_KEY", "")
+        if not PIXABAY_API_KEY:
+            return []
+        query = " ".join(keywords[:2]) if lang == "en" else keywords[0]
+        ko_to_en = {
             "AI": "artificial intelligence technology",
-            "인공지능": "artificial intelligence brain",
-            "비트코인": "bitcoin cryptocurrency coins",
-            "코인": "cryptocurrency digital coins",
-            "투자": "investment money growth chart",
-            "주식": "stock market trading charts",
+            "인공지능": "artificial intelligence",
+            "비트코인": "bitcoin cryptocurrency",
+            "코인": "cryptocurrency digital",
+            "투자": "investment money growth",
+            "주식": "stock market trading",
             "ETF": "investment portfolio finance",
-            "재테크": "money saving piggy bank",
-            "자동화": "automation robot technology",
-            "블로그": "blogger writing laptop coffee",
-            "수익": "income money laptop online",
-            "연금": "retirement pension elderly",
-            "노후": "retirement couple happy",
-            "번아웃": "burnout stress tired office",
-            "동기부여": "motivation success winner",
-            "성공": "success achievement business",
-            "습관": "morning routine healthy",
-            "트럼프": "business politics office",
-            "관세": "trade shipping containers",
+            "재테크": "money saving finance",
+            "자동화": "automation technology",
+            "번아웃": "burnout stress office",
+            "동기부여": "motivation success",
+            "성공": "success achievement",
+            "노후": "retirement couple",
+            "트럼프": "business politics",
+            "관세": "trade shipping port",
             "일론 머스크": "electric car technology",
-            "젠슨 황": "GPU chip semiconductor",
-            "워런 버핏": "investment stocks finance",
-            "시니어": "senior couple lifestyle",
-            "부업": "side hustle freelance laptop",
+            "젠슨 황": "GPU chip technology",
+            "워런 버핏": "investment finance",
+            "시니어": "senior lifestyle",
+            "부업": "freelance laptop",
         }
-        query = "technology business"
-        for ko, en in keywords_map.items():
-            if ko in title:
+        for ko, en in ko_to_en.items():
+            if ko in query:
                 query = en
                 break
-        if lang == "en":
-            for word in ["bitcoin", "crypto", "stock", "invest", "ETF", "automation", "AI"]:
-                if word.lower() in title.lower():
-                    query = word + " technology"
-                    break
-
         encoded = urllib.parse.quote(query)
-        url = f"https://api.pexels.com/v1/search?query={encoded}&per_page=15&orientation=portrait"
-        req = urllib.request.Request(url, headers={"Authorization": PEXELS_API_KEY})
+        url = f"https://pixabay.com/api/?key={PIXABAY_API_KEY.strip()}&q={encoded}&image_type=photo&orientation=horizontal&per_page=15&safesearch=true"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=10) as resp:
             data = _json.loads(resp.read())
-
-        photos = data.get("photos", [])
-        if not photos:
-            raise Exception("검색 결과 없음")
-
-        import random
-        photo = random.choice(photos[:10])
-        img_url = photo["src"]["portrait"]
-
-        img_path = f"/tmp/bg_pexels_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.jpg"
-        req2 = urllib.request.Request(img_url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req2, timeout=15) as resp2:
-            with open(img_path, "wb") as f:
-                f.write(resp2.read())
-
-        img = Image.open(img_path).resize((1080, 1920)).convert("RGBA")
-        dark = Image.new("RGBA", (1080, 1920), (0, 0, 0, 150))
-        img = Image.alpha_composite(img, dark).convert("RGB")
-        img.save(img_path)
-        print(f"🖼️ Pexels 이미지 완료: {query}")
-        return img_path
+        hits = data.get("hits", [])
+        if hits:
+            import random
+            selected = random.sample(hits[:10], min(count, len(hits[:10])))
+            urls = [h["webformatURL"] for h in selected]
+            print(f"🖼️ Pixabay 이미지 {len(urls)}개: {query}")
+            return urls
     except Exception as e:
-        print(f"⚠️ Pexels 실패 → 그라디언트 배경 사용: {e}")
-    return create_gradient_background(title)
+        print(f"⚠️ Pixabay 실패: {e}")
+    return []
 
 
 def create_gradient_background(title=""):
@@ -320,102 +309,97 @@ def wrap_text(text, font, max_width):
     return lines
 
 
-def create_subtitle_frame(sentence, title, keywords=None, frame_size=(1080, 1920), bg_color=None):
-    """PIL로 자막 프레임 생성 - 상단 제목 + 중앙 키워드 카드 + 하단 자막"""
+def create_subtitle_frame(sentence, title, content_image_path=None, frame_size=(1080, 1920), bg_color=None):
+    """
+    아이반 스타일 프레임:
+    - 상단 바: 어머나! 채널명
+    - 제목 박스 (흰 배경)
+    - 중앙 이미지 (있으면)
+    - 하단 자막
+    """
     width, height = frame_size
     img = Image.new('RGBA', (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
 
-    # ── 상단 제목 ──
-    title_font = get_font(56)
-    title_max_w = width - 140
-    title_lines = wrap_text(title[:45], title_font, title_max_w)
-    title_line_h = 68
-    title_block_h = len(title_lines) * title_line_h + 20
-    title_y_start = 220
+    # ── 상단 채널 바 ──
+    bar_h = 110
+    draw.rectangle([0, 0, width, bar_h], fill=(220, 80, 150, 255))
+    ch_font = get_font(52)
+    ch_name = "어머나!  @OhmyG7"
+    ch_bbox = ch_font.getbbox(ch_name)
+    ch_w = ch_bbox[2] - ch_bbox[0]
+    ch_x = (width - ch_w) // 2
+    draw_text_with_outline(draw, ch_name, ch_x, 28, ch_font,
+                            text_color=(255, 255, 255, 255),
+                            outline_color=(180, 40, 100, 200),
+                            outline_width=2)
 
-    draw.rectangle(
-        [50, title_y_start - 20, width - 50, title_y_start + title_block_h + 20],
-        fill=(0, 0, 0, 170)
-    )
+    # ── 제목 박스 (흰 배경) ──
+    title_font = get_font(58)
+    title_max_w = width - 80
+    title_lines = wrap_text(title[:45], title_font, title_max_w)
+    title_line_h = 72
+    title_block_h = len(title_lines) * title_line_h + 40
+    title_y_start = bar_h + 30
+
+    draw.rectangle([20, title_y_start, width - 20, title_y_start + title_block_h],
+                   fill=(255, 255, 255, 240))
+    draw.rectangle([20, title_y_start, width - 20, title_y_start + title_block_h],
+                   fill=None, outline=(220, 80, 150, 180))
+
     for i, line in enumerate(title_lines):
         bbox = title_font.getbbox(line)
         text_w = bbox[2] - bbox[0]
         x = (width - text_w) // 2
-        y = title_y_start + i * title_line_h
-        draw_text_with_outline(draw, line, x, y, title_font,
-                                text_color=(255, 255, 255, 255),
-                                outline_color=(0, 0, 0, 255), outline_width=3)
+        y = title_y_start + 20 + i * title_line_h
+        draw.text((x, y), line, font=title_font, fill=(30, 30, 30, 255))
 
-    # 구분선
-    title_bottom = title_y_start + title_block_h + 30
-    draw.line([(80, title_bottom), (width - 80, title_bottom)],
-              fill=(80, 140, 255, 180), width=2)
+    # ── 중앙 이미지 ──
+    img_y_start = title_y_start + title_block_h + 30
+    img_area_h = 680
 
-    # ── 중앙 포인트 카드 (핵심 문구 강조) ──
-    center_y = height // 2 - 80
-    point_font = get_font(62)
-    # 문장에서 핵심 숫자나 키워드 추출
-    import re
-    numbers = re.findall(r'[\$₩]?[\d,]+[만억천%\+]?[\w]*', sentence)
-    center_text = numbers[0] if numbers else sentence[:12]
-
-    ct_bbox = point_font.getbbox(center_text)
-    ct_w = ct_bbox[2] - ct_bbox[0]
-    ct_h = ct_bbox[3] - ct_bbox[1]
-    pad = 40
-
-    # 강조 박스 (파란 테두리)
-    draw.rounded_rectangle(
-        [(width//2 - ct_w//2 - pad, center_y - pad),
-         (width//2 + ct_w//2 + pad, center_y + ct_h + pad)],
-        radius=20, fill=(255, 220, 235, 220), outline=(255, 100, 150, 230), width=3
-    )
-    draw_text_with_outline(draw, center_text,
-                            width//2 - ct_w//2, center_y,
-                            point_font,
-                            text_color=(200, 50, 100, 255),
-                            outline_color=(0, 0, 0, 255), outline_width=4)
+    if content_image_path and os.path.exists(content_image_path):
+        try:
+            content_img = Image.open(content_image_path).convert('RGBA')
+            content_img = content_img.resize((width - 40, img_area_h))
+            img.paste(content_img, (20, img_y_start), content_img)
+        except Exception:
+            _draw_placeholder(draw, img_y_start, img_area_h, width)
+    else:
+        _draw_placeholder(draw, img_y_start, img_area_h, width)
 
     # ── 하단 자막 ──
-    sub_font = get_font(50)
-    sub_max_w = width - 140
+    sub_font = get_font(52)
+    sub_max_w = width - 80
     sub_lines = wrap_text(sentence, sub_font, sub_max_w)
-    sub_line_h = 62
+    sub_line_h = 64
     sub_block_h = len(sub_lines) * sub_line_h + 30
-    sub_y_base = height - 260 - sub_block_h
+    sub_y_base = img_y_start + img_area_h + 20
 
-    draw.rectangle(
-        [50, sub_y_base - 20, width - 50, sub_y_base + sub_block_h + 20],
-        fill=(0, 0, 0, 180)
-    )
+    draw.rectangle([20, sub_y_base, width - 20, sub_y_base + sub_block_h],
+                   fill=(255, 255, 255, 230))
+
     for i, line in enumerate(sub_lines):
         bbox = sub_font.getbbox(line)
         text_w = bbox[2] - bbox[0]
         x = (width - text_w) // 2
         y = sub_y_base + 15 + i * sub_line_h
         draw_text_with_outline(draw, line, x, y, sub_font,
-                                text_color=(255, 255, 100, 255),
-                                outline_color=(0, 0, 0, 255), outline_width=3)
-
-    # ── 채널명 (최하단) ──
-    ch_font = get_font(34)
-    ch_name = "AI Insight Labs"
-    ch_bbox = ch_font.getbbox(ch_name)
-    ch_w = ch_bbox[2] - ch_bbox[0]
-    ch_x = (width - ch_w) // 2
-    draw_text_with_outline(draw, ch_name, ch_x, height - 160, ch_font,
-                            text_color=(150, 180, 255, 200),
-                            outline_color=(0, 0, 0, 160), outline_width=2)
+                                text_color=(30, 30, 30, 255),
+                                outline_color=(255, 255, 255, 200),
+                                outline_width=1)
 
     img_path = f"/tmp/frame_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}_{id(sentence)}.png"
     img.save(img_path, 'PNG')
     return img_path
 
+def _draw_placeholder(draw, y_start, height, width):
+    """이미지 없을 때 플레이스홀더"""
+    draw.rectangle([20, y_start, width - 20, y_start + height],
+                   fill=(245, 230, 245, 200))
 
-# ─────────────────────────────────────────────
-# 4. TTS
-# ─────────────────────────────────────────────
+
+
 def generate_tts(script, lang):
     audio_path = f"/tmp/audio_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.mp3"
     gTTS(text=script, lang="ko" if lang == "ko" else "en", slow=False).save(audio_path)
@@ -426,17 +410,40 @@ def generate_tts(script, lang):
 # ─────────────────────────────────────────────
 # 5. 영상 생성 (✅ PIL 자막 방식)
 # ─────────────────────────────────────────────
-def create_video(bg_image_path, audio_path, sentences, title, lang):
+def download_image(url, path):
+    """이미지 URL 다운로드"""
+    try:
+        import urllib.request
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            with open(path, "wb") as f:
+                f.write(resp.read())
+        return True
+    except Exception as e:
+        print(f"⚠️ 이미지 다운로드 실패: {e}")
+        return False
+
+def create_video(bg_image_path, audio_path, sentences, title, lang, keywords=None):
     video_path = f"/tmp/shorts_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.mp4"
     audio = AudioFileClip(audio_path)
     duration = audio.duration
     time_per = duration / len(sentences)
 
-    clips = []
+    # Pixabay 이미지 2~3장 가져오기
+    content_images = []
+    if keywords:
+        img_urls = get_pixabay_images(keywords, lang, count=3)
+        for j, url in enumerate(img_urls):
+            img_path = f"/tmp/content_img_{j}_{datetime.datetime.now().strftime('%H%M%S')}.jpg"
+            if download_image(url, img_path):
+                content_images.append(img_path)
 
+    clips = []
     for i, sentence in enumerate(sentences):
-        # PIL로 자막 프레임 생성
-        frame_path = create_subtitle_frame(sentence, title)
+        # 문장마다 다른 이미지 순환
+        content_img = content_images[i % len(content_images)] if content_images else None
+
+        frame_path = create_subtitle_frame(sentence, title, content_image_path=content_img)
         frame_img = Image.open(frame_path).convert('RGBA')
 
         # 배경 + 자막 합성
@@ -522,7 +529,8 @@ def generate_shorts(blog_title, blog_content, lang, blog_url=""):
 
     bg_path = generate_background_image(blog_title, lang)
     audio_path = generate_tts(script_data["script"], lang)
-    video_path = create_video(bg_path, audio_path, script_data["sentences"], script_data["title"], lang)
+    keywords = blog_title.split()[:3]
+    video_path = create_video(bg_path, audio_path, script_data["sentences"], script_data["title"], lang, keywords=keywords)
 
     desc = (
         f"{script_data['script']}\n\n"
