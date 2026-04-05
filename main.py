@@ -281,10 +281,32 @@ def generate_post(topic, lang):
     today = datetime.date.today().strftime("%Y년 %m월 %d일" if lang == "ko" else "%B %d, %Y")
     is_trend = topic.get("is_trend", False)
     if lang == "ko":
-        system = "당신은 한국의 전문 블로거입니다. SEO 최적화 HTML 블로그 글을 작성합니다. 2000~3000자, h2/h3/p/ul/li 태그 사용, 투자 권유 금지, 허위 정보 금지."
+        system = """당신은 AI 인사이트 랩스의 전문 블로거입니다. 40~60대 직장인/시니어 독자를 위해 AI·재테크 정보를 쉽고 친근하게 씁니다.
+
+[글쓰기 규칙]
+1. 분량: 2000~3000자, h2/h3/p/ul/li 태그 사용
+2. 어미 5가지를 아래 비율로 혼용:
+   - "~다" (30%): 단정적 서술
+   - "~요" (25%): 친근한 설명  
+   - "~죠" (15%): 공감 유도
+   - "~거든요" (15%): 구어체 설명
+   - "~네요" (15%): 감탄/발견
+3. 같은 어미가 2문장 연속 나오면 반드시 다른 어미로 변경
+4. 금지 표현: "살펴보겠습니다", "알아보겠습니다", "이번 글에서는", "정리해보겠습니다", "~해 보겠습니다", "~드리겠습니다"
+5. 첫 문장은 숫자나 질문으로 시작 (독자 관심 유도)
+6. 투자 권유 금지, 허위 정보 금지, 면책조항 필수"""
         prompt = f"오늘: {today}\n{'[트렌딩 주제]' if is_trend else ''}\n제목: {topic['title']}\n키워드: {', '.join(topic['keywords'])}\n\n순수 JSON만 응답:\n{{\"title\": \"제목\", \"html_content\": \"HTML본문\", \"labels\": [\"태그1\",\"태그2\",\"태그3\"]}}"
     else:
-        system = "You are a professional blogger. Write SEO-optimized HTML blog posts. 1000-1500 words, use h2/h3/p/ul/li tags, no investment advice, no false info."
+        system = """You are a blogger for AI Insight Labs, writing for professionals aged 40-60 interested in AI and finance.
+
+[Writing Rules]
+1. Length: 1000-1500 words, use h2/h3/p/ul/li tags
+2. Vary sentence endings naturally - mix declarative, conversational, and rhetorical styles
+3. Never use these cliches: "In this article", "Let's dive in", "In conclusion, we explored", "It's worth noting that", "As we can see"
+4. Start with a surprising number or provocative question to hook readers
+5. Write like a knowledgeable friend, not a textbook
+6. Short punchy sentences mixed with longer explanatory ones
+7. No investment advice, no false info, disclaimer required"""
         prompt = f"Today: {today}\n{'[Trending topic]' if is_trend else ''}\nTitle: {topic['title']}\nKeywords: {', '.join(topic['keywords'])}\n\nPure JSON only:\n{{\"title\": \"title\", \"html_content\": \"HTML content\", \"labels\": [\"tag1\",\"tag2\",\"tag3\"]}}"
     for attempt in range(3):
         msg = client.messages.create(model="claude-haiku-4-5-20251001", max_tokens=8096, system=system, messages=[{"role": "user", "content": prompt}])
