@@ -54,29 +54,50 @@ Rules: 5 sentences, first=strong hook (start with number or shocking fact), last
 Pure JSON only (no other text):
 {{"title": "Shorts title(50 chars)", "script": "Full script", "sentences": ["s1","s2","s3","s4","s5"], "hashtags": ["#tag1","#tag2","#tag3","#tag4","#tag5"]}}"""
 
+    # ── 하네스 v2: 3개 생성 → 최고점 선택 → 6점 미만이면 업로드 스킵 ──
+    best_script = None
+    best_score = 0
+    last_feedback = ""
+
     for attempt in range(3):
+        # 피드백 반영해서 재생성
+        current_prompt = prompt
+        if last_feedback:
+            current_prompt += f"
+
+[이전 평가 피드백 - 반드시 반영하세요]
+{last_feedback}"
+
         msg = client.messages.create(
             model="claude-haiku-4-5-20251001", max_tokens=1024,
-            messages=[{"role": "user", "content": prompt}]
+            messages=[{"role": "user", "content": current_prompt}]
         )
         raw = msg.content[0].text.strip()
         try:
             script_data = json.loads(raw[raw.find("{"):raw.rfind("}")+1])
-            # ── 하네스: 스크립트 품질 평가 ──
-            score = evaluate_script(script_data, lang, client)
-            print(f"📊 스크립트 품질: {score}/10")
-            if score >= 6:
-                return script_data
-            print(f"⚠️ 스크립트 재생성 (시도 {attempt+1}/3)")
-        except Exception:
-            print(f"⚠️ JSON 파싱 실패 (시도 {attempt+1}/3)")
-    return json.loads(raw[raw.find("{"):raw.rfind("}")+1])
+            score, feedback = evaluate_script_with_feedback(script_data, lang, client)
+            print(f"📊 스크립트 품질 (시도 {attempt+1}/3): {score}/10")
+            if score > best_score:
+                best_score = score
+                best_script = script_data
+            last_feedback = feedback
+            if score >= 8:
+                break  # 8점 이상이면 더 안 만들어도 됨
+        except Exception as e:
+            print(f"⚠️ JSON 파싱 실패 (시도 {attempt+1}/3): {e}")
 
-def evaluate_script(script_data, lang, client):
-    """하네스: 스크립트 품질 자동 평가"""
+    if best_score < 6:
+        print(f"❌ 최고점 {best_score}/10 — 업로드 스킵 (퀄리티 미달)")
+        return None  # 업로드 안 함
+
+    print(f"✅ 최종 선택 스크립트: {best_score}/10")
+    return best_script
+
+def evaluate_script_with_feedback(script_data, lang, client):
+    """하네스 v2: 점수 + 구체적 피드백 반환"""
     try:
         if lang == "ko":
-            prompt = f"""유튜브 숏츠 스크립트 품질을 0~10점으로 평가해주세요.
+            prompt = f"""유튜브 숏츠 스크립트를 평가해주세요.
 
 제목: {script_data.get("title", "")}
 스크립트: {script_data.get("script", "")}
@@ -86,10 +107,13 @@ def evaluate_script(script_data, lang, client):
 2. 40~60대 타겟에 맞는 주제와 말투인가?
 3. 30초 안에 핵심을 전달하는가?
 4. 자연스러운 구어체인가?
+5. "어머나! 이런 게 있었어?" 반응 유발하는가?
 
-숫자만 응답 (0~10)"""
+다음 형식으로만 응답:
+점수: [0~10 숫자]
+피드백: [구체적으로 무엇을 개선해야 하는지 1~2줄]"""
         else:
-            prompt = f"""Rate this YouTube Shorts script 0-10.
+            prompt = f"""Evaluate this YouTube Shorts script.
 
 Title: {script_data.get("title", "")}
 Script: {script_data.get("script", "")}
@@ -99,15 +123,36 @@ Criteria:
 2. Appropriate for 40-60s professionals?
 3. Delivers key message within 30 seconds?
 4. Natural conversational tone?
+5. Triggers "OhmyG! I didn't know that!" reaction?
 
-Number only (0-10)"""
+Reply in this format only:
+Score: [0-10]
+Feedback: [1-2 lines on what specifically needs improvement]"""
         msg = client.messages.create(
-            model="claude-haiku-4-5-20251001", max_tokens=10,
+            model="claude-haiku-4-5-20251001", max_tokens=100,
             messages=[{"role": "user", "content": prompt}]
         )
-        return int(msg.content[0].text.strip())
+        response = msg.content[0].text.strip()
+        lines = response.split("
+")
+        score = 7
+        feedback = ""
+        for line in lines:
+            if line.startswith("점수:") or line.startswith("Score:"):
+                try:
+                    score = int("".join(filter(str.isdigit, line.split(":")[1])))
+                except:
+                    pass
+            if line.startswith("피드백:") or line.startswith("Feedback:"):
+                feedback = line.split(":", 1)[1].strip()
+        return score, feedback
     except:
-        return 7
+        return 7, ""
+
+def evaluate_script(script_data, lang, client):
+    """하위 호환용"""
+    score, _ = evaluate_script_with_feedback(script_data, lang, client)
+    return score
 
 
 # ─────────────────────────────────────────────
@@ -470,6 +515,9 @@ def generate_shorts(blog_title, blog_content, lang, blog_url=""):
     print(f"\n🎬 숏츠 생성 시작: {blog_title}")
 
     script_data = generate_shorts_script(blog_title, blog_content, lang)
+    if script_data is None:
+        print("⏭️ 숏츠 스킵 (퀄리티 미달)")
+        return None
     print(f"📝 스크립트 완료: {script_data['title']}")
 
     bg_path = generate_background_image(blog_title, lang)
