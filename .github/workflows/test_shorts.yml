@@ -1,0 +1,78 @@
+name: Test Shorts Only
+
+on:
+  workflow_dispatch:
+    inputs:
+      lang:
+        description: "언어 선택"
+        required: true
+        default: "ko"
+        type: choice
+        options:
+          - ko
+          - en
+          - both
+
+jobs:
+  test-shorts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg fonts-nanum
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run shorts test
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+          SHORTS_TEST_LANG: ${{ github.event.inputs.lang }}
+        run: |
+          python - <<'EOF'
+          import os
+          from shorts_generator import generate_shorts
+
+          lang = os.environ.get("SHORTS_TEST_LANG", "ko")
+
+          test_data = {
+              "ko": {
+                  "title": "AI로 월 100만원 버는 현실적인 방법 5가지",
+                  "content": "AI 도구를 활용해 실제로 수익을 만드는 방법을 소개합니다. 블로그 자동화, 콘텐츠 제작, 프리랜서 업무 자동화 등 검증된 방법들입니다.",
+                  "url": "https://aiinsightlabs.blogspot.com"
+              },
+              "en": {
+                  "title": "Best AI Tools for Side Hustle in 2026 Ranked",
+                  "content": "Discover the top AI tools that actually make money in 2026. From content automation to freelance work, these tools are tested and proven.",
+                  "url": "https://geturaiinsight.blogspot.com"
+              }
+          }
+
+          langs = ["ko", "en"] if lang == "both" else [lang]
+
+          for l in langs:
+              d = test_data[l]
+              print(f"\n{'='*50}")
+              print(f"🧪 테스트: {l.upper()}")
+              print(f"{'='*50}")
+              result = generate_shorts(d["title"], d["content"], l, d["url"])
+              if result:
+                  print(f"✅ 숏츠 업로드 성공: {result}")
+              else:
+                  print(f"❌ 숏츠 업로드 실패 또는 스킵")
+          EOF
