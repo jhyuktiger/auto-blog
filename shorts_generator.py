@@ -346,33 +346,54 @@ def _fill_gradient(img, width, height):
 #  │  자막 흰색 텍스트      │ ← 하단 overlay
 #  └──────────────────────┘
 # ─────────────────────────────────────────────
+def _crop_fit(pil_img, width, height):
+    """이미지를 width x height 에 center-crop + resize"""
+    bg_w, bg_h = pil_img.size
+    target_ratio = width / height
+    src_ratio = bg_w / bg_h
+    if src_ratio > target_ratio:
+        new_w = int(bg_h * target_ratio)
+        left = (bg_w - new_w) // 2
+        pil_img = pil_img.crop((left, 0, left + new_w, bg_h))
+    else:
+        new_h = int(bg_w / target_ratio)
+        pil_img = pil_img.crop((0, 0, bg_w, new_h))
+    return pil_img.resize((width, height), Image.LANCZOS)
+
+
 def create_subtitle_frame(sentence, title, content_image_path=None, frame_size=(1080, 1920)):
     width, height = frame_size
     img = Image.new('RGBA', (width, height), (20, 10, 40, 255))
 
-    # ── Step 1: 배경 이미지 풀스크린 (9:16 center-crop) ──
+    # ── Step 1-A: bg_default.png 베이스 배경 (레포 루트) ──
+    repo_bg = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bg_default.png")
+    bg_loaded = False
+    if os.path.exists(repo_bg):
+        try:
+            base = Image.open(repo_bg).convert('RGBA')
+            base = _crop_fit(base, width, height)
+            img.paste(base, (0, 0))
+            bg_loaded = True
+            print("🖼️ bg_default.png 배경 사용")
+        except Exception as e:
+            print(f"⚠️ bg_default.png 로드 실패: {e}")
+
+    # ── Step 1-B: Pixabay 이미지를 중앙 영역에 반투명 overlay ──
     if content_image_path and os.path.exists(content_image_path):
         try:
-            bg = Image.open(content_image_path).convert('RGBA')
-            bg_w, bg_h = bg.size
-            target_ratio = width / height  # 0.5625
-
-            src_ratio = bg_w / bg_h
-            if src_ratio > target_ratio:
-                new_w = int(bg_h * target_ratio)
-                left = (bg_w - new_w) // 2
-                bg = bg.crop((left, 0, left + new_w, bg_h))
-            else:
-                new_h = int(bg_w / target_ratio)
-                top = 0  # 상단 기준 crop
-                bg = bg.crop((0, top, bg_w, top + new_h))
-
-            bg = bg.resize((width, height), Image.LANCZOS)
-            img.paste(bg, (0, 0))
+            pixabay = Image.open(content_image_path).convert('RGBA')
+            pixabay = _crop_fit(pixabay, width, height)
+            # bg_default 위에 60% 투명도로 blending (배경 느낌 살리면서 이미지도 보임)
+            alpha = 180 if bg_loaded else 255
+            r, g, b, a = pixabay.split()
+            a = a.point(lambda x: min(x, alpha))
+            pixabay.putalpha(a)
+            img.paste(pixabay, (0, 0), pixabay)
         except Exception as e:
-            print(f"⚠️ 배경 이미지 적용 실패: {e}")
-            _fill_gradient(img, width, height)
-    else:
+            print(f"⚠️ Pixabay overlay 실패: {e}")
+            if not bg_loaded:
+                _fill_gradient(img, width, height)
+    elif not bg_loaded:
         _fill_gradient(img, width, height)
 
     draw = ImageDraw.Draw(img)
