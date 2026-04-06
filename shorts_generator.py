@@ -1,8 +1,10 @@
 """
-Shorts Generator v4.1
+Shorts Generator v4.2
 수정사항:
 1. TextClip(ImageMagick) → PIL 방식으로 자막 교체
-2. JSON 파싱 강화 (Claude 응답 특수문자/줄바꿈 처리)
+2. JSON 파싱 강화
+3. 레이아웃 완전 재설계 - 이미지 풀스크린 + overlay 자막
+4. 점수 파싱 버그 수정
 """
 
 import os
@@ -32,26 +34,17 @@ YOUTUBE_CLIENT_SECRET = os.environ["YOUTUBE_CLIENT_SECRET"]
 # JSON 파싱 유틸
 # ─────────────────────────────────────────────
 def safe_parse_json(raw):
-    """Claude 응답에서 JSON 안전하게 파싱"""
-    # 1) { ... } 범위 추출
     start = raw.find("{")
     end = raw.rfind("}") + 1
     if start == -1 or end == 0:
         raise ValueError("JSON 블록 없음")
     json_str = raw[start:end]
-
-    # 2) 제어문자 제거 (줄바꿈·탭은 유지)
     json_str = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', json_str)
-
-    # 3) 1차 시도
     try:
         return json.loads(json_str)
     except json.JSONDecodeError:
-        pass
-
-    # 4) 역슬래시 정규화 후 재시도
-    json_str2 = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', json_str)
-    return json.loads(json_str2)
+        json_str2 = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', json_str)
+        return json.loads(json_str2)
 
 
 # ─────────────────────────────────────────────
@@ -108,7 +101,7 @@ Pure JSON only (no markdown):
             print(f"⚠️ JSON 파싱 실패 (시도 {attempt+1}/3): {e}")
 
     if best_score < 6:
-        print(f"❌ 최고점 {best_score}/10 — 업로드 스킵 (퀄리티 미달)")
+        print(f"❌ 최고점 {best_score}/10 — 업로드 스킵")
         return None
 
     print(f"✅ 최종 선택 스크립트: {best_score}/10")
@@ -116,56 +109,37 @@ Pure JSON only (no markdown):
 
 
 def evaluate_script_with_feedback(script_data, lang, client):
-    """하네스 v2: 점수 + 구체적 피드백 반환"""
     try:
         if lang == "ko":
             prompt = f"""유튜브 숏츠 스크립트를 평가해주세요.
-
 제목: {script_data.get("title", "")}
 스크립트: {script_data.get("script", "")}
 
-평가 기준:
-1. 첫 문장이 강렬한 훅인가? (숫자/충격적 사실로 시작)
-2. 40~60대 타겟에 맞는 주제와 말투인가?
-3. 30초 안에 핵심을 전달하는가?
-4. 자연스러운 구어체인가?
-5. "어머나! 이런 게 있었어?" 반응 유발하는가?
-
-다음 형식으로만 응답:
-점수: [0~10 숫자]
-피드백: [구체적으로 무엇을 개선해야 하는지 1~2줄]"""
+반드시 아래 형식으로만 응답 (숫자는 0~10 사이 정수 하나만):
+점수: 7
+피드백: 개선점"""
         else:
             prompt = f"""Evaluate this YouTube Shorts script.
-
 Title: {script_data.get("title", "")}
 Script: {script_data.get("script", "")}
 
-Criteria:
-1. Strong hook in first sentence? (number or shocking fact)
-2. Appropriate for 40-60s professionals?
-3. Delivers key message within 30 seconds?
-4. Natural conversational tone?
-5. Triggers "OhmyG! I didn't know that!" reaction?
-
-Reply in this format only:
-Score: [0-10]
-Feedback: [1-2 lines on what specifically needs improvement]"""
+Reply ONLY in this format (score must be a single integer 0-10):
+Score: 7
+Feedback: improvement point"""
 
         msg = client.messages.create(
-            model="claude-haiku-4-5-20251001", max_tokens=100,
+            model="claude-haiku-4-5-20251001", max_tokens=80,
             messages=[{"role": "user", "content": prompt}]
         )
         response = msg.content[0].text.strip()
         lines = response.split("\n")
-
         score = 7
         feedback = ""
         for line in lines:
             if line.startswith("점수:") or line.startswith("Score:"):
-                try:
-                    score = int("".join(filter(str.isdigit, line.split(":")[1])))
-                except Exception:
-                    pass
+                nums = re.findall(r'\b([0-9]|10)\b', line.split(":", 1)[1])
+                if nums:
+                    score = int(nums[0])
             if line.startswith("피드백:") or line.startswith("Feedback:"):
                 feedback = line.split(":", 1)[1].strip()
         return score, feedback
@@ -174,31 +148,15 @@ Feedback: [1-2 lines on what specifically needs improvement]"""
 
 
 def evaluate_script(script_data, lang, client):
-    """하위 호환용"""
     score, _ = evaluate_script_with_feedback(script_data, lang, client)
     return score
 
 
 # ─────────────────────────────────────────────
-# 2. 배경 이미지 생성
+# 2. 이미지 관련
 # ─────────────────────────────────────────────
-def generate_background_image(title, lang):
-    """고정 배경 이미지 사용 (bg_default.png)"""
-    try:
-        repo_bg = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bg_default.png")
-        if os.path.exists(repo_bg):
-            img = Image.open(repo_bg).resize((1080, 1920)).convert("RGB")
-            img_path = f"/tmp/bg_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.png"
-            img.save(img_path)
-            print("🖼️ 고정 배경 이미지 사용")
-            return img_path
-    except Exception as e:
-        print(f"⚠️ 배경 이미지 실패: {e}")
-    return create_gradient_background(title)
-
-
-def get_pixabay_images(keywords, lang, count=3):
-    """Pixabay에서 관련 이미지 여러장 가져오기"""
+def get_pixabay_images(keywords, lang, count=5):
+    """Pixabay - 따뜻하고 친근한 이미지 키워드로 매핑 (로봇 얼굴 NO)"""
     try:
         import urllib.request
         import urllib.parse
@@ -206,42 +164,69 @@ def get_pixabay_images(keywords, lang, count=3):
         PIXABAY_API_KEY = os.environ.get("PIXABAY_API_KEY", "")
         if not PIXABAY_API_KEY:
             return []
+
         query = " ".join(keywords[:2]) if lang == "en" else keywords[0]
+
         ko_to_en = {
-            "AI": "artificial intelligence technology",
-            "인공지능": "artificial intelligence",
-            "비트코인": "bitcoin cryptocurrency",
-            "코인": "cryptocurrency digital",
-            "투자": "investment money growth",
-            "주식": "stock market trading",
-            "ETF": "investment portfolio finance",
-            "재테크": "money saving finance",
-            "자동화": "automation technology",
-            "번아웃": "burnout stress office",
-            "동기부여": "motivation success",
-            "성공": "success achievement",
-            "노후": "retirement couple",
-            "트럼프": "business politics",
-            "관세": "trade shipping port",
-            "일론 머스크": "electric car technology",
-            "젠슨 황": "GPU chip technology",
-            "워런 버핏": "investment finance",
-            "시니어": "senior lifestyle",
-            "부업": "freelance laptop",
+            "AI": "technology laptop digital workspace",
+            "인공지능": "computer technology future",
+            "비트코인": "gold coins money wealth",
+            "코인": "coins money gold",
+            "투자": "growth chart money finance",
+            "주식": "stock chart finance graph",
+            "ETF": "investment portfolio coins",
+            "재테크": "piggy bank savings money",
+            "자동화": "laptop workflow productivity desk",
+            "번아웃": "tired person office desk",
+            "동기부여": "sunrise road mountain success",
+            "성공": "handshake business success",
+            "노후": "happy senior couple outdoor",
+            "트럼프": "business newspaper office",
+            "관세": "cargo ship port trade",
+            "일론 머스크": "electric car road night",
+            "젠슨 황": "computer chip circuit board",
+            "워런 버핏": "newspaper finance books",
+            "시니어": "happy senior lifestyle outdoor",
+            "부업": "laptop coffee freelance home",
+            "챗GPT": "laptop chat screen",
+            "Claude": "laptop technology office",
+            "바이브코딩": "coding laptop coffee desk",
+            "애드센스": "laptop money online",
+            "블로그": "writing laptop coffee desk",
+            "연금": "retirement savings jar coins",
+            "ISA": "savings bank piggy",
+            "ETF": "graph chart investment",
+            "S&P500": "stock market graph",
+            "배당": "money coins dividend",
         }
         for ko, en in ko_to_en.items():
             if ko in query:
                 query = en
                 break
+
         encoded = urllib.parse.quote(query)
-        url = f"https://pixabay.com/api/?key={PIXABAY_API_KEY.strip()}&q={encoded}&image_type=photo&orientation=horizontal&per_page=15&safesearch=true"
+        # orientation=vertical 로 세로 이미지 우선
+        url = (
+            f"https://pixabay.com/api/?key={PIXABAY_API_KEY.strip()}"
+            f"&q={encoded}&image_type=photo&orientation=vertical"
+            f"&per_page=20&safesearch=true&min_width=600"
+        )
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=10) as resp:
             data = _json.loads(resp.read())
         hits = data.get("hits", [])
+
+        # 세로 이미지 없으면 horizontal로 재시도
+        if not hits:
+            url2 = url.replace("orientation=vertical", "orientation=horizontal")
+            req2 = urllib.request.Request(url2, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req2, timeout=10) as resp2:
+                data2 = _json.loads(resp2.read())
+            hits = data2.get("hits", [])
+
         if hits:
             import random
-            selected = random.sample(hits[:10], min(count, len(hits[:10])))
+            selected = random.sample(hits[:15], min(count, len(hits[:15])))
             urls = [h["webformatURL"] for h in selected]
             print(f"🖼️ Pixabay 이미지 {len(urls)}개: {query}")
             return urls
@@ -250,45 +235,45 @@ def get_pixabay_images(keywords, lang, count=3):
     return []
 
 
-def create_gradient_background(title=""):
-    """멋진 그라디언트 배경 생성"""
+def download_image(url, path):
+    try:
+        import urllib.request
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            with open(path, "wb") as f:
+                f.write(resp.read())
+        return True
+    except Exception as e:
+        print(f"⚠️ 이미지 다운로드 실패: {e}")
+        return False
+
+
+def create_gradient_fallback():
+    """폴백용 그라디언트 배경 (딥 퍼플 → 핑크)"""
     width, height = 1080, 1920
     img = Image.new('RGB', (width, height))
     draw = ImageDraw.Draw(img)
-
     for y in range(height):
         ratio = y / height
-        r = int(240 + ratio * 10)
-        g = int(210 + ratio * 5)
-        b = int(240 + ratio * 10)
+        r = int(60 + ratio * 160)
+        g = int(20 + ratio * 60)
+        b = int(120 + ratio * 80)
         draw.line([(0, y), (width, y)], fill=(r, g, b))
-
-    for cx, cy, cr, ca in [(200, 400, 300, 40), (900, 800, 200, 35),
-                            (100, 1500, 250, 40), (800, 1200, 180, 30)]:
-        overlay = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-        ov_draw = ImageDraw.Draw(overlay)
-        ov_draw.ellipse([cx-cr, cy-cr, cx+cr, cy+cr], fill=(220, 180, 240, ca))
-        img = Image.alpha_composite(img.convert('RGBA'), overlay).convert('RGB')
-
-    draw = ImageDraw.Draw(img)
-    draw.line([(80, 280), (1000, 280)], fill=(255, 150, 180), width=3)
-    draw.line([(80, 1600), (1000, 1600)], fill=(255, 150, 180), width=3)
-
     img_path = f"/tmp/bg_grad_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.png"
     img.save(img_path)
-    print("🖼️ 그라디언트 배경 생성 완료")
     return img_path
 
 
 # ─────────────────────────────────────────────
-# 3. PIL 자막 함수 (✅ TextClip 완전 대체)
+# 3. 폰트 & 텍스트 유틸
 # ─────────────────────────────────────────────
 def get_font(size):
-    """폰트 로드 (시스템 폰트 fallback)"""
     font_candidates = [
         "/System/Library/Fonts/AppleSDGothicNeo.ttc",
         "/System/Library/Fonts/Supplemental/AppleGothic.ttf",
+        "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",
         "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSansCJK-Bold.ttc",
         "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
         "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
@@ -302,8 +287,10 @@ def get_font(size):
     return ImageFont.load_default()
 
 
-def draw_text_with_outline(draw, text, x, y, font, text_color, outline_color, outline_width=3):
-    """외곽선 있는 텍스트 그리기"""
+def draw_text_with_outline(draw, text, x, y, font,
+                            text_color=(255, 255, 255, 255),
+                            outline_color=(0, 0, 0, 230),
+                            outline_width=3):
     for dx in range(-outline_width, outline_width + 1):
         for dy in range(-outline_width, outline_width + 1):
             if dx != 0 or dy != 0:
@@ -312,15 +299,19 @@ def draw_text_with_outline(draw, text, x, y, font, text_color, outline_color, ou
 
 
 def wrap_text(text, font, max_width):
-    """텍스트를 max_width 픽셀 너비에 맞게 줄바꿈"""
     words = text.split()
+    if not words:
+        return [text]
     lines = []
     current_line = []
-
     for word in words:
         test_line = ' '.join(current_line + [word])
-        bbox = font.getbbox(test_line)
-        if bbox[2] - bbox[0] <= max_width:
+        try:
+            bbox = font.getbbox(test_line)
+            w = bbox[2] - bbox[0]
+        except Exception:
+            w = len(test_line) * 30
+        if w <= max_width:
             current_line.append(word)
         else:
             if current_line:
@@ -331,97 +322,146 @@ def wrap_text(text, font, max_width):
     return lines if lines else [text]
 
 
-def create_subtitle_frame(sentence, title, content_image_path=None, frame_size=(1080, 1920), bg_color=None):
-    """
-    아이반 스타일 프레임:
-    - 상단 바: 어머나! 채널명
-    - 제목 박스 (흰 배경)
-    - 중앙 이미지 (있으면)
-    - 하단 자막
-    """
-    width, height = frame_size
-    img = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+def _fill_gradient(img, width, height):
     draw = ImageDraw.Draw(img)
+    for y in range(height):
+        ratio = y / height
+        r = int(40 + ratio * 120)
+        g = int(10 + ratio * 30)
+        b = int(80 + ratio * 100)
+        draw.line([(0, y), (width, y)], fill=(r, g, b, 255))
 
-    # ── 상단 채널 바 ──
-    bar_h = 110
-    draw.rectangle([0, 0, width, bar_h], fill=(220, 80, 150, 255))
-    ch_font = get_font(52)
-    ch_name = "어머나!  @OhmyG7"
-    ch_bbox = ch_font.getbbox(ch_name)
-    ch_w = ch_bbox[2] - ch_bbox[0]
-    ch_x = (width - ch_w) // 2
-    draw_text_with_outline(draw, ch_name, ch_x, 28, ch_font,
-                           text_color=(255, 255, 255, 255),
-                           outline_color=(180, 40, 100, 200),
-                           outline_width=2)
 
-    # ── 제목 박스 (흰 배경) ──
-    title_font = get_font(58)
-    title_max_w = width - 80
-    title_lines = wrap_text(title[:45], title_font, title_max_w)
-    title_line_h = 72
-    title_block_h = len(title_lines) * title_line_h + 40
-    title_y_start = bar_h + 30
+# ─────────────────────────────────────────────
+# 4. ✅ 새 레이아웃 프레임 생성
+#
+#  ┌──────────────────────┐
+#  │ 어머나! @OhmyG7       │ ← 반투명 상단바 (100px)
+#  ├──────────────────────┤
+#  │ [제목 반투명 박스]     │ ← 노란 텍스트
+#  │                      │
+#  │   이미지 풀스크린      │ ← 화면 전체 배경
+#  │                      │
+#  │▓▓▓ 그라데이션 overlay ▓│
+#  │  자막 흰색 텍스트      │ ← 하단 overlay
+#  └──────────────────────┘
+# ─────────────────────────────────────────────
+def create_subtitle_frame(sentence, title, content_image_path=None, frame_size=(1080, 1920)):
+    width, height = frame_size
+    img = Image.new('RGBA', (width, height), (20, 10, 40, 255))
 
-    draw.rectangle([20, title_y_start, width - 20, title_y_start + title_block_h],
-                   fill=(255, 255, 255, 240))
-    draw.rectangle([20, title_y_start, width - 20, title_y_start + title_block_h],
-                   fill=None, outline=(220, 80, 150, 180))
-
-    for i, line in enumerate(title_lines):
-        bbox = title_font.getbbox(line)
-        text_w = bbox[2] - bbox[0]
-        x = (width - text_w) // 2
-        y = title_y_start + 20 + i * title_line_h
-        draw.text((x, y), line, font=title_font, fill=(30, 30, 30, 255))
-
-    # ── 중앙 이미지 ──
-    img_y_start = title_y_start + title_block_h + 30
-    img_area_h = 680
-
+    # ── Step 1: 배경 이미지 풀스크린 (9:16 center-crop) ──
     if content_image_path and os.path.exists(content_image_path):
         try:
-            content_img = Image.open(content_image_path).convert('RGBA')
-            content_img = content_img.resize((width - 40, img_area_h))
-            img.paste(content_img, (20, img_y_start), content_img)
-        except Exception:
-            _draw_placeholder(draw, img_y_start, img_area_h, width)
+            bg = Image.open(content_image_path).convert('RGBA')
+            bg_w, bg_h = bg.size
+            target_ratio = width / height  # 0.5625
+
+            src_ratio = bg_w / bg_h
+            if src_ratio > target_ratio:
+                new_w = int(bg_h * target_ratio)
+                left = (bg_w - new_w) // 2
+                bg = bg.crop((left, 0, left + new_w, bg_h))
+            else:
+                new_h = int(bg_w / target_ratio)
+                top = 0  # 상단 기준 crop
+                bg = bg.crop((0, top, bg_w, top + new_h))
+
+            bg = bg.resize((width, height), Image.LANCZOS)
+            img.paste(bg, (0, 0))
+        except Exception as e:
+            print(f"⚠️ 배경 이미지 적용 실패: {e}")
+            _fill_gradient(img, width, height)
     else:
-        _draw_placeholder(draw, img_y_start, img_area_h, width)
+        _fill_gradient(img, width, height)
 
-    # ── 하단 자막 ──
-    sub_font = get_font(52)
-    sub_max_w = width - 80
-    sub_lines = wrap_text(sentence, sub_font, sub_max_w)
-    sub_line_h = 64
-    sub_block_h = len(sub_lines) * sub_line_h + 30
-    sub_y_base = img_y_start + img_area_h + 20
+    draw = ImageDraw.Draw(img)
 
-    draw.rectangle([20, sub_y_base, width - 20, sub_y_base + sub_block_h],
-                   fill=(255, 255, 255, 230))
+    # ── Step 2: 상단 채널 바 ──
+    bar_h = 100
+    bar_bg = Image.new('RGBA', (width, bar_h), (0, 0, 0, 170))
+    img.paste(bar_bg, (0, 0), bar_bg)
+    # 핑크 하단 강조선
+    draw.rectangle([0, bar_h - 5, width, bar_h], fill=(220, 80, 150, 255))
 
-    for i, line in enumerate(sub_lines):
-        bbox = sub_font.getbbox(line)
-        text_w = bbox[2] - bbox[0]
+    ch_font = get_font(48)
+    ch_name = "어머나!  @OhmyG7"
+    try:
+        ch_bbox = ch_font.getbbox(ch_name)
+        ch_w = ch_bbox[2] - ch_bbox[0]
+    except Exception:
+        ch_w = 400
+    ch_x = (width - ch_w) // 2
+    draw_text_with_outline(draw, ch_name, ch_x, 22, ch_font,
+                           text_color=(255, 255, 255, 255),
+                           outline_color=(150, 30, 90, 255),
+                           outline_width=2)
+
+    # ── Step 3: 제목 박스 (상단바 아래, 반투명) ──
+    title_font = get_font(50)
+    title_lines = wrap_text(title[:42], title_font, width - 60)
+    title_line_h = 64
+    title_block_h = len(title_lines) * title_line_h + 24
+    title_y = bar_h + 6
+
+    title_bg = Image.new('RGBA', (width, title_block_h), (0, 0, 0, 150))
+    img.paste(title_bg, (0, title_y), title_bg)
+
+    for i, line in enumerate(title_lines):
+        try:
+            bbox = title_font.getbbox(line)
+            text_w = bbox[2] - bbox[0]
+        except Exception:
+            text_w = 400
         x = (width - text_w) // 2
-        y = sub_y_base + 15 + i * sub_line_h
+        y = title_y + 12 + i * title_line_h
+        draw_text_with_outline(draw, line, x, y, title_font,
+                               text_color=(255, 230, 50, 255),   # 노란색
+                               outline_color=(0, 0, 0, 240),
+                               outline_width=3)
+
+    # ── Step 4: 하단 그라데이션 + 자막 overlay ──
+    sub_font = get_font(58)
+    sub_lines = wrap_text(sentence, sub_font, width - 80)
+    sub_line_h = 74
+    sub_block_h = len(sub_lines) * sub_line_h + 60
+
+    # 하단 그라데이션 (자막 위로 자연스럽게)
+    grad_h = sub_block_h + 100
+    grad_start = height - grad_h
+    grad_overlay = Image.new('RGBA', (width, grad_h), (0, 0, 0, 0))
+    grad_draw = ImageDraw.Draw(grad_overlay)
+    for row in range(grad_h):
+        alpha = int(220 * (row / grad_h) ** 0.6)
+        grad_draw.line([(0, row), (width, row)], fill=(0, 0, 0, alpha))
+    img.paste(grad_overlay, (0, grad_start), grad_overlay)
+
+    # 자막 텍스트 (하단에서 50px 여백)
+    sub_y = height - sub_block_h - 50
+    for i, line in enumerate(sub_lines):
+        try:
+            bbox = sub_font.getbbox(line)
+            text_w = bbox[2] - bbox[0]
+        except Exception:
+            text_w = 400
+        x = (width - text_w) // 2
+        y = sub_y + 30 + i * sub_line_h
         draw_text_with_outline(draw, line, x, y, sub_font,
-                               text_color=(30, 30, 30, 255),
-                               outline_color=(255, 255, 255, 200),
-                               outline_width=1)
+                               text_color=(255, 255, 255, 255),
+                               outline_color=(0, 0, 0, 255),
+                               outline_width=4)
+
+    # ── Step 5: 핑크 하단 강조선 ──
+    draw.rectangle([0, height - 8, width, height], fill=(220, 80, 150, 255))
 
     img_path = f"/tmp/frame_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}_{id(sentence)}.png"
     img.save(img_path, 'PNG')
     return img_path
 
 
-def _draw_placeholder(draw, y_start, height, width):
-    """이미지 없을 때 플레이스홀더"""
-    draw.rectangle([20, y_start, width - 20, y_start + height],
-                   fill=(245, 230, 245, 200))
-
-
+# ─────────────────────────────────────────────
+# 5. TTS
+# ─────────────────────────────────────────────
 def generate_tts(script, lang):
     audio_path = f"/tmp/audio_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.mp3"
     gTTS(text=script, lang="ko" if lang == "ko" else "en", slow=False).save(audio_path)
@@ -430,48 +470,33 @@ def generate_tts(script, lang):
 
 
 # ─────────────────────────────────────────────
-# 4. 영상 생성 (✅ PIL 자막 방식)
+# 6. 영상 생성 (배경 합성 제거 - 프레임 자체가 풀스크린)
 # ─────────────────────────────────────────────
-def download_image(url, path):
-    """이미지 URL 다운로드"""
-    try:
-        import urllib.request
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            with open(path, "wb") as f:
-                f.write(resp.read())
-        return True
-    except Exception as e:
-        print(f"⚠️ 이미지 다운로드 실패: {e}")
-        return False
-
-
-def create_video(bg_image_path, audio_path, sentences, title, lang, keywords=None):
+def create_video(audio_path, sentences, title, lang, keywords=None):
     video_path = f"/tmp/shorts_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.mp4"
     audio = AudioFileClip(audio_path)
     duration = audio.duration
     time_per = duration / len(sentences)
 
+    # 문장 수만큼 이미지 가져오기
     content_images = []
     if keywords:
-        img_urls = get_pixabay_images(keywords, lang, count=3)
+        img_urls = get_pixabay_images(keywords, lang, count=len(sentences))
         for j, url in enumerate(img_urls):
             img_path = f"/tmp/content_img_{j}_{datetime.datetime.now().strftime('%H%M%S')}.jpg"
             if download_image(url, img_path):
                 content_images.append(img_path)
 
+    if not content_images:
+        fallback = create_gradient_fallback()
+        content_images = [fallback]
+
     clips = []
     for i, sentence in enumerate(sentences):
-        content_img = content_images[i % len(content_images)] if content_images else None
+        content_img = content_images[i % len(content_images)]
+        # 프레임 자체가 풀스크린 (별도 배경 합성 불필요)
         frame_path = create_subtitle_frame(sentence, title, content_image_path=content_img)
-        frame_img = Image.open(frame_path).convert('RGBA')
-
-        bg_img = Image.open(bg_image_path).resize((1080, 1920)).convert('RGBA')
-        combined = Image.alpha_composite(bg_img, frame_img).convert('RGB')
-        combined_path = f"/tmp/combined_{i}_{datetime.datetime.now().strftime('%H%M%S%f')}.png"
-        combined.save(combined_path)
-
-        clip = (ImageClip(combined_path)
+        clip = (ImageClip(frame_path)
                 .set_start(i * time_per)
                 .set_duration(time_per))
         clips.append(clip)
@@ -486,7 +511,7 @@ def create_video(bg_image_path, audio_path, sentences, title, lang, keywords=Non
 
 
 # ─────────────────────────────────────────────
-# 5. YouTube 업로드
+# 7. YouTube 업로드
 # ─────────────────────────────────────────────
 def get_youtube_service():
     creds = Credentials(
@@ -535,7 +560,7 @@ def upload_to_youtube(video_path, title, description, hashtags, lang):
 
 
 # ─────────────────────────────────────────────
-# 6. 메인 함수
+# 8. 메인 함수
 # ─────────────────────────────────────────────
 def generate_shorts(blog_title, blog_content, lang, blog_url=""):
     print(f"\n🎬 숏츠 생성 시작: {blog_title}")
@@ -546,11 +571,10 @@ def generate_shorts(blog_title, blog_content, lang, blog_url=""):
         return None
     print(f"📝 스크립트 완료: {script_data['title']}")
 
-    bg_path = generate_background_image(blog_title, lang)
     audio_path = generate_tts(script_data["script"], lang)
     keywords = blog_title.split()[:3]
-    video_path = create_video(bg_path, audio_path, script_data["sentences"],
-                               script_data["title"], lang, keywords=keywords)
+    video_path = create_video(audio_path, script_data["sentences"],
+                              script_data["title"], lang, keywords=keywords)
 
     desc = (
         f"{script_data['script']}\n\n"
