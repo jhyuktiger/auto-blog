@@ -1,15 +1,14 @@
 """
-Shorts Generator v4
+Shorts Generator v4.1
 수정사항:
 1. TextClip(ImageMagick) → PIL 방식으로 자막 교체
-2. Gemini 모델명 수정: gemini-2.0-flash-exp-image-generation → gemini-2.5-flash-image
+2. JSON 파싱 강화 (Claude 응답 특수문자/줄바꿈 처리)
 """
 
 import os
+import re
 import json
 import datetime
-import base64
-import textwrap
 import anthropic
 from gtts import gTTS
 from PIL import Image, ImageDraw, ImageFont
@@ -28,6 +27,33 @@ YOUTUBE_REFRESH_TOKEN = os.environ["YOUTUBE_REFRESH_TOKEN"]
 YOUTUBE_CLIENT_ID = os.environ["YOUTUBE_CLIENT_ID"]
 YOUTUBE_CLIENT_SECRET = os.environ["YOUTUBE_CLIENT_SECRET"]
 
+
+# ─────────────────────────────────────────────
+# JSON 파싱 유틸
+# ─────────────────────────────────────────────
+def safe_parse_json(raw):
+    """Claude 응답에서 JSON 안전하게 파싱"""
+    # 1) { ... } 범위 추출
+    start = raw.find("{")
+    end = raw.rfind("}") + 1
+    if start == -1 or end == 0:
+        raise ValueError("JSON 블록 없음")
+    json_str = raw[start:end]
+
+    # 2) 제어문자 제거 (줄바꿈·탭은 유지)
+    json_str = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', json_str)
+
+    # 3) 1차 시도
+    try:
+        return json.loads(json_str)
+    except json.JSONDecodeError:
+        pass
+
+    # 4) 역슬래시 정규화 후 재시도
+    json_str2 = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', json_str)
+    return json.loads(json_str2)
+
+
 # ─────────────────────────────────────────────
 # 1. 스크립트 생성
 # ─────────────────────────────────────────────
@@ -41,7 +67,7 @@ def generate_shorts_script(blog_title, blog_content, lang):
 타겟: 40~60대 직장인/시니어, AI·재테크 정보에 관심 있는 분들
 규칙: 5문장, 첫문장=강렬한 훅(숫자나 충격적 사실로 시작), 마지막="자세한 내용은 링크 참고!", 구어체
 
-순수 JSON만 (다른 텍스트 없이):
+순수 JSON만 응답 (마크다운 없이):
 {{"title": "숏츠제목(50자이내)", "script": "전체대본", "sentences": ["문장1","문장2","문장3","문장4","문장5"], "hashtags": ["#태그1","#태그2","#태그3","#태그4","#태그5"]}}"""
     else:
         prompt = f"""Convert to 30-second YouTube Shorts script.
@@ -51,19 +77,17 @@ Content: {blog_content[:600]}
 Target: 40-60s professionals interested in AI and finance
 Rules: 5 sentences, first=strong hook (start with number or shocking fact), last="Check the link!", conversational
 
-Pure JSON only (no other text):
+Pure JSON only (no markdown):
 {{"title": "Shorts title(50 chars)", "script": "Full script", "sentences": ["s1","s2","s3","s4","s5"], "hashtags": ["#tag1","#tag2","#tag3","#tag4","#tag5"]}}"""
 
-    # ── 하네스 v2: 3개 생성 → 최고점 선택 → 6점 미만이면 업로드 스킵 ──
     best_script = None
     best_score = 0
     last_feedback = ""
 
     for attempt in range(3):
-        # 피드백 반영해서 재생성
         current_prompt = prompt
         if last_feedback:
-         current_prompt += f"\n[이전 평가 피드백 - 반드시 반영하세요]\n{last_feedback}"
+            current_prompt += f"\n[이전 평가 피드백 - 반드시 반영하세요]\n{last_feedback}"
 
         msg = client.messages.create(
             model="claude-haiku-4-5-20251001", max_tokens=1024,
@@ -71,7 +95,7 @@ Pure JSON only (no other text):
         )
         raw = msg.content[0].text.strip()
         try:
-            script_data = json.loads(raw[raw.find("{"):raw.rfind("}")+1])
+            script_data = safe_parse_json(raw)
             score, feedback = evaluate_script_with_feedback(script_data, lang, client)
             print(f"📊 스크립트 품질 (시도 {attempt+1}/3): {score}/10")
             if score > best_score:
@@ -79,16 +103,17 @@ Pure JSON only (no other text):
                 best_script = script_data
             last_feedback = feedback
             if score >= 8:
-                break  # 8점 이상이면 더 안 만들어도 됨
+                break
         except Exception as e:
             print(f"⚠️ JSON 파싱 실패 (시도 {attempt+1}/3): {e}")
 
     if best_score < 6:
         print(f"❌ 최고점 {best_score}/10 — 업로드 스킵 (퀄리티 미달)")
-        return None  # 업로드 안 함
+        return None
 
     print(f"✅ 최종 선택 스크립트: {best_score}/10")
     return best_script
+
 
 def evaluate_script_with_feedback(script_data, lang, client):
     """하네스 v2: 점수 + 구체적 피드백 반환"""
@@ -125,26 +150,28 @@ Criteria:
 Reply in this format only:
 Score: [0-10]
 Feedback: [1-2 lines on what specifically needs improvement]"""
+
         msg = client.messages.create(
             model="claude-haiku-4-5-20251001", max_tokens=100,
             messages=[{"role": "user", "content": prompt}]
         )
         response = msg.content[0].text.strip()
-        lines = response.split("
-")
+        lines = response.split("\n")
+
         score = 7
         feedback = ""
         for line in lines:
             if line.startswith("점수:") or line.startswith("Score:"):
                 try:
                     score = int("".join(filter(str.isdigit, line.split(":")[1])))
-                except:
+                except Exception:
                     pass
             if line.startswith("피드백:") or line.startswith("Feedback:"):
                 feedback = line.split(":", 1)[1].strip()
         return score, feedback
-    except:
+    except Exception:
         return 7, ""
+
 
 def evaluate_script(script_data, lang, client):
     """하위 호환용"""
@@ -153,12 +180,11 @@ def evaluate_script(script_data, lang, client):
 
 
 # ─────────────────────────────────────────────
-# 2. 배경 이미지 생성 (Pexels → fallback 그라디언트)
+# 2. 배경 이미지 생성
 # ─────────────────────────────────────────────
 def generate_background_image(title, lang):
     """고정 배경 이미지 사용 (bg_default.png)"""
     try:
-        # GitHub Actions에서 레포 루트의 bg_default.png 사용
         repo_bg = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bg_default.png")
         if os.path.exists(repo_bg):
             img = Image.open(repo_bg).resize((1080, 1920)).convert("RGB")
@@ -169,6 +195,7 @@ def generate_background_image(title, lang):
     except Exception as e:
         print(f"⚠️ 배경 이미지 실패: {e}")
     return create_gradient_background(title)
+
 
 def get_pixabay_images(keywords, lang, count=3):
     """Pixabay에서 관련 이미지 여러장 가져오기"""
@@ -259,10 +286,8 @@ def create_gradient_background(title=""):
 def get_font(size):
     """폰트 로드 (시스템 폰트 fallback)"""
     font_candidates = [
-        # macOS
         "/System/Library/Fonts/AppleSDGothicNeo.ttc",
         "/System/Library/Fonts/Supplemental/AppleGothic.ttf",
-        # Linux (GitHub Actions)
         "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
         "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -303,7 +328,7 @@ def wrap_text(text, font, max_width):
             current_line = [word]
     if current_line:
         lines.append(' '.join(current_line))
-    return lines
+    return lines if lines else [text]
 
 
 def create_subtitle_frame(sentence, title, content_image_path=None, frame_size=(1080, 1920), bg_color=None):
@@ -327,9 +352,9 @@ def create_subtitle_frame(sentence, title, content_image_path=None, frame_size=(
     ch_w = ch_bbox[2] - ch_bbox[0]
     ch_x = (width - ch_w) // 2
     draw_text_with_outline(draw, ch_name, ch_x, 28, ch_font,
-                            text_color=(255, 255, 255, 255),
-                            outline_color=(180, 40, 100, 200),
-                            outline_width=2)
+                           text_color=(255, 255, 255, 255),
+                           outline_color=(180, 40, 100, 200),
+                           outline_width=2)
 
     # ── 제목 박스 (흰 배경) ──
     title_font = get_font(58)
@@ -382,19 +407,19 @@ def create_subtitle_frame(sentence, title, content_image_path=None, frame_size=(
         x = (width - text_w) // 2
         y = sub_y_base + 15 + i * sub_line_h
         draw_text_with_outline(draw, line, x, y, sub_font,
-                                text_color=(30, 30, 30, 255),
-                                outline_color=(255, 255, 255, 200),
-                                outline_width=1)
+                               text_color=(30, 30, 30, 255),
+                               outline_color=(255, 255, 255, 200),
+                               outline_width=1)
 
     img_path = f"/tmp/frame_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}_{id(sentence)}.png"
     img.save(img_path, 'PNG')
     return img_path
 
+
 def _draw_placeholder(draw, y_start, height, width):
     """이미지 없을 때 플레이스홀더"""
     draw.rectangle([20, y_start, width - 20, y_start + height],
                    fill=(245, 230, 245, 200))
-
 
 
 def generate_tts(script, lang):
@@ -405,7 +430,7 @@ def generate_tts(script, lang):
 
 
 # ─────────────────────────────────────────────
-# 5. 영상 생성 (✅ PIL 자막 방식)
+# 4. 영상 생성 (✅ PIL 자막 방식)
 # ─────────────────────────────────────────────
 def download_image(url, path):
     """이미지 URL 다운로드"""
@@ -420,13 +445,13 @@ def download_image(url, path):
         print(f"⚠️ 이미지 다운로드 실패: {e}")
         return False
 
+
 def create_video(bg_image_path, audio_path, sentences, title, lang, keywords=None):
     video_path = f"/tmp/shorts_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.mp4"
     audio = AudioFileClip(audio_path)
     duration = audio.duration
     time_per = duration / len(sentences)
 
-    # Pixabay 이미지 2~3장 가져오기
     content_images = []
     if keywords:
         img_urls = get_pixabay_images(keywords, lang, count=3)
@@ -437,13 +462,10 @@ def create_video(bg_image_path, audio_path, sentences, title, lang, keywords=Non
 
     clips = []
     for i, sentence in enumerate(sentences):
-        # 문장마다 다른 이미지 순환
         content_img = content_images[i % len(content_images)] if content_images else None
-
         frame_path = create_subtitle_frame(sentence, title, content_image_path=content_img)
         frame_img = Image.open(frame_path).convert('RGBA')
 
-        # 배경 + 자막 합성
         bg_img = Image.open(bg_image_path).resize((1080, 1920)).convert('RGBA')
         combined = Image.alpha_composite(bg_img, frame_img).convert('RGB')
         combined_path = f"/tmp/combined_{i}_{datetime.datetime.now().strftime('%H%M%S%f')}.png"
@@ -464,7 +486,7 @@ def create_video(bg_image_path, audio_path, sentences, title, lang, keywords=Non
 
 
 # ─────────────────────────────────────────────
-# 6. YouTube 업로드
+# 5. YouTube 업로드
 # ─────────────────────────────────────────────
 def get_youtube_service():
     creds = Credentials(
@@ -513,7 +535,7 @@ def upload_to_youtube(video_path, title, description, hashtags, lang):
 
 
 # ─────────────────────────────────────────────
-# 7. 메인 함수
+# 6. 메인 함수
 # ─────────────────────────────────────────────
 def generate_shorts(blog_title, blog_content, lang, blog_url=""):
     print(f"\n🎬 숏츠 생성 시작: {blog_title}")
@@ -527,7 +549,8 @@ def generate_shorts(blog_title, blog_content, lang, blog_url=""):
     bg_path = generate_background_image(blog_title, lang)
     audio_path = generate_tts(script_data["script"], lang)
     keywords = blog_title.split()[:3]
-    video_path = create_video(bg_path, audio_path, script_data["sentences"], script_data["title"], lang, keywords=keywords)
+    video_path = create_video(bg_path, audio_path, script_data["sentences"],
+                               script_data["title"], lang, keywords=keywords)
 
     desc = (
         f"{script_data['script']}\n\n"
