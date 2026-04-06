@@ -4,6 +4,7 @@ Auto Blog Generator v2.2
 """
 
 import os
+import re
 import json
 import random
 import datetime
@@ -23,7 +24,6 @@ EN_BLOGGER_CLIENT_SECRET = os.environ["EN_BLOGGER_CLIENT_SECRET"]
 KO_BLOG_ID = os.environ["KO_BLOG_ID"]
 EN_BLOG_ID = os.environ["EN_BLOG_ID"]
 
-# 숏츠 관련 secrets (없으면 숏츠 스킵)
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 YOUTUBE_REFRESH_TOKEN = os.environ.get("YOUTUBE_REFRESH_TOKEN", "")
 YOUTUBE_CLIENT_ID = os.environ.get("YOUTUBE_CLIENT_ID", "")
@@ -34,19 +34,26 @@ SHORTS_ENABLED = all([GEMINI_API_KEY, YOUTUBE_REFRESH_TOKEN, YOUTUBE_CLIENT_ID, 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
+
 def send_telegram(message):
-    """텔레그램 알림 발송"""
+    """텔레그램 알림 발송 (plain text만 사용)"""
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return
     try:
         import urllib.request
         import urllib.parse
-        text = urllib.parse.quote(message)
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage?chat_id={TELEGRAM_CHAT_ID}&text={text}"
+        # HTML 태그 제거 후 plain text로 전송
+        clean = re.sub(r'<[^>]+>', '', message)
+        text = urllib.parse.quote(clean)
+        url = (
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+            f"?chat_id={TELEGRAM_CHAT_ID}&text={text}"
+        )
         urllib.request.urlopen(url, timeout=10)
         print("📱 텔레그램 알림 발송 완료")
     except Exception as e:
         print(f"⚠️ 텔레그램 실패: {e}")
+
 
 def get_published_titles(service, blog_id):
     try:
@@ -57,6 +64,7 @@ def get_published_titles(service, blog_id):
     except Exception as e:
         print(f"⚠️ 목록 조회 실패: {e}")
         return []
+
 
 def get_trending_ko():
     try:
@@ -70,6 +78,7 @@ def get_trending_ko():
         print(f"⚠️ 트렌드 실패: {e}")
         return None
 
+
 def get_trending_en():
     try:
         from pytrends.request import TrendReq
@@ -81,6 +90,7 @@ def get_trending_en():
     except Exception as e:
         print(f"⚠️ 트렌드 실패: {e}")
         return None
+
 
 KO_TOPICS = [
     # ── AI/자동화 ──
@@ -151,19 +161,19 @@ EN_TOPICS = [
     {"title": "What the World Most Successful People Regret Most", "keywords": ["success regrets", "life lessons", "mindset shift"], "category": "Motivation"},
 ]
 
+
 def is_duplicate(topic, published_titles):
     """키워드 기반 유사도 체크 - 핵심 키워드가 2개 이상 겹치면 중복"""
     title_lower = topic["title"].lower()
     for pub in published_titles:
         pub_lower = pub.lower()
-        # 제목 완전 일치
         if title_lower == pub_lower:
             return True
-        # 핵심 키워드 겹침 체크
         matches = sum(1 for kw in topic["keywords"] if kw.lower() in pub_lower)
         if matches >= 2:
             return True
     return False
+
 
 def select_topic(lang, published_titles):
     if lang == "ko":
@@ -176,14 +186,12 @@ def select_topic(lang, published_titles):
                     return candidate
         pool = KO_TOPICS[:]
         random.shuffle(pool)
-        # 카테고리 다양성: 최근 발행 카테고리 파악
         recent = published_titles[:5]
         recent_cats = []
         for pub in recent:
             for t in KO_TOPICS:
                 if t["title"] in pub:
                     recent_cats.append(t["category"])
-        # 덜 나온 카테고리 우선
         for topic in sorted(pool, key=lambda x: recent_cats.count(x["category"])):
             if not is_duplicate(topic, published_titles):
                 return topic
@@ -210,6 +218,7 @@ def select_topic(lang, published_titles):
     base = KO_TOPICS[0] if lang == "ko" else EN_TOPICS[0]
     return {"title": f"{base['title']} ({today})", "keywords": base["keywords"], "category": base["category"], "is_trend": False}
 
+
 def get_pexels_image(keywords, lang):
     """Pixabay API로 블로그 썸네일 이미지 URL 가져오기"""
     try:
@@ -221,7 +230,6 @@ def get_pexels_image(keywords, lang):
             return None
         query = " ".join(keywords[:2]) if lang == "en" else keywords[0]
         ko_to_en = {
-            # AI/기술
             "AI": "artificial intelligence technology",
             "인공지능": "artificial intelligence brain",
             "자동화": "automation robot technology",
@@ -231,7 +239,6 @@ def get_pexels_image(keywords, lang):
             "코딩": "programming code laptop",
             "앱": "smartphone app mobile",
             "소프트웨어": "software development",
-            # 투자/금융
             "비트코인": "bitcoin cryptocurrency coins",
             "코인": "cryptocurrency digital money",
             "주식": "stock market trading charts",
@@ -243,14 +250,12 @@ def get_pexels_image(keywords, lang):
             "연금": "retirement pension savings",
             "노후": "retirement elderly couple",
             "절세": "tax saving finance",
-            # CEO/인물
             "일론 머스크": "electric car tesla technology",
             "젠슨 황": "GPU chip semiconductor",
             "샘 알트만": "AI startup office",
             "워런 버핏": "investment stocks newspaper",
             "팔란티어": "data analytics office",
             "손정의": "technology investment startup",
-            # 동기부여/자기계발
             "번아웃": "burnout stress tired office",
             "동기부여": "motivation inspiration success",
             "자기계발": "personal growth books reading",
@@ -258,16 +263,13 @@ def get_pexels_image(keywords, lang):
             "습관": "morning routine healthy lifestyle",
             "루틴": "morning routine workout",
             "멘탈": "mental health mindfulness calm",
-            # 시니어/생활
             "시니어": "senior couple happy lifestyle",
             "스마트폰": "smartphone elderly hands",
             "카카오": "mobile payment smartphone",
-            # 뉴스/시사
             "트럼프": "business politics office",
             "관세": "trade shipping containers port",
             "경제": "economy business growth chart",
             "금리": "bank interest rate finance",
-            # 블로그/수익
             "애드센스": "laptop blogger writing",
             "블로그": "blogger writing laptop coffee",
             "수익": "income money laptop online",
@@ -292,6 +294,7 @@ def get_pexels_image(keywords, lang):
     except Exception as e:
         print(f"⚠️ Pixabay 이미지 실패: {e}")
     return None
+
 
 def generate_post(topic, lang):
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -343,7 +346,7 @@ def generate_post(topic, lang):
 
 [Writing Rules]
 1. Length: 1000-1500 words, use h2/h3/p/ul/li tags
-2. Start with a surprising number or bold question (e.g. "What if you could save 00/month with one simple change?")
+2. Start with a surprising number or bold question (e.g. "What if you could save $500/month with one simple change?")
 3. Write like a smart friend giving real advice, not a textbook
 4. Mix short punchy sentences with longer explanatory ones
 5. Include at least one real example or comparison with numbers
@@ -361,22 +364,30 @@ def generate_post(topic, lang):
 - Every section needs a practical takeaway
 - No investment advice, no false info, disclaimer required"""
         prompt = f"Today: {today}\n{'[Trending topic]' if is_trend else ''}\nTitle: {topic['title']}\nKeywords: {', '.join(topic['keywords'])}\n\nPure JSON only:\n{{\"title\": \"title\", \"html_content\": \"HTML content\", \"labels\": [\"tag1\",\"tag2\",\"tag3\"]}}"
+
     for attempt in range(3):
-        msg = client.messages.create(model="claude-haiku-4-5-20251001", max_tokens=8096, system=system, messages=[{"role": "user", "content": prompt}])
+        msg = client.messages.create(
+            model="claude-haiku-4-5-20251001", max_tokens=8096,
+            system=system, messages=[{"role": "user", "content": prompt}]
+        )
         raw = msg.content[0].text
         try:
-            return json.loads(raw[raw.find("{"):raw.rfind("}")+1])
+            start = raw.find("{")
+            end = raw.rfind("}") + 1
+            json_str = raw[start:end]
+            json_str = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', json_str)
+            return json.loads(json_str)
         except json.JSONDecodeError:
             try:
-                import re
-                cleaned = raw[raw.find("{"):raw.rfind("}")+1]
-                cleaned = re.sub(r'\\(?!["\\/bfnrt])', r'\\\\', cleaned)
+                cleaned = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', json_str)
                 return json.loads(cleaned)
             except Exception:
                 print(f"⚠️ JSON 파싱 실패 (시도 {attempt+1}/3), 재생성...")
                 time.sleep(2)
+
     title = topic["title"]
     return {"title": title, "html_content": f"<h2>{title}</h2><p>준비 중입니다.</p>", "labels": topic.get("keywords", ["AI"])[:3]}
+
 
 def evaluate_post(post, lang):
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -384,30 +395,41 @@ def evaluate_post(post, lang):
         prompt = f"블로그 글 품질 0~10점:\n제목: {post['title']}\n미리보기: {post['html_content'][:400]}\n숫자만 응답"
     else:
         prompt = f"Rate blog 0-10:\nTitle: {post['title']}\nPreview: {post['html_content'][:400]}\nNumber only"
-    msg = client.messages.create(model="claude-haiku-4-5-20251001", max_tokens=10, messages=[{"role": "user", "content": prompt}])
+    msg = client.messages.create(
+        model="claude-haiku-4-5-20251001", max_tokens=10,
+        messages=[{"role": "user", "content": prompt}]
+    )
     try:
         score = int(msg.content[0].text.strip())
         print(f"📊 품질: {score}/10")
         return score
-    except:
+    except Exception:
         return 7
 
+
 def get_blogger_service(rt, ci, cs):
-    creds = Credentials(token=None, refresh_token=rt, client_id=ci, client_secret=cs, token_uri="https://oauth2.googleapis.com/token", scopes=["https://www.googleapis.com/auth/blogger"])
+    creds = Credentials(
+        token=None, refresh_token=rt, client_id=ci, client_secret=cs,
+        token_uri="https://oauth2.googleapis.com/token",
+        scopes=["https://www.googleapis.com/auth/blogger"]
+    )
     creds.refresh(Request())
     return build("blogger", "v3", credentials=creds)
 
+
 def publish_post(service, blog_id, title, html_content, labels, img_data=None):
-    # 이미지 상단 삽입
     if img_data:
-        img_html = f'''<div style="text-align:center;margin-bottom:24px;">
-<img src="{img_data["url"]}" alt="{title}" style="max-width:100%;border-radius:8px;"/>
-<p style="font-size:12px;color:#888;">Photo by {img_data["credit"]} on Pexels</p>
-</div>'''
+        img_html = (
+            f'<div style="text-align:center;margin-bottom:24px;">'
+            f'<img src="{img_data["url"]}" alt="{title}" style="max-width:100%;border-radius:8px;"/>'
+            f'<p style="font-size:12px;color:#888;">Photo by {img_data["credit"]} on Pexels</p>'
+            f'</div>'
+        )
         html_content = img_html + html_content
     body = {"title": title, "content": html_content, "labels": labels}
     result = service.posts().insert(blogId=blog_id, body=body, isDraft=False).execute()
     return result.get("url", "")
+
 
 # ─────────────────────────────────────────────
 # 숏츠 연동 (블로그 발행 후 자동 실행)
@@ -418,7 +440,6 @@ def try_generate_shorts(title, content, lang, blog_url):
         print("⏭️ 숏츠 스킵 (YouTube secrets 없음)")
         return None
     try:
-        # 환경변수 임시 설정 (shorts_generator가 os.environ 직접 읽으므로)
         os.environ["GEMINI_API_KEY"] = GEMINI_API_KEY
         os.environ["YOUTUBE_REFRESH_TOKEN"] = YOUTUBE_REFRESH_TOKEN
         os.environ["YOUTUBE_CLIENT_ID"] = YOUTUBE_CLIENT_ID
@@ -432,12 +453,13 @@ def try_generate_shorts(title, content, lang, blog_url):
         print(f"⚠️ 숏츠 실패 (블로그는 정상 발행됨): {e}")
         return None
 
+
 def html_to_plain(html_content):
     """HTML 태그 제거해서 숏츠 스크립트용 텍스트 추출"""
-    import re
     text = re.sub(r'<[^>]+>', ' ', html_content)
     text = re.sub(r'\s+', ' ', text).strip()
     return text[:800]
+
 
 def main():
     print("🚀 Auto Blog Generator v2.2 (블로그 + 숏츠)")
@@ -456,11 +478,8 @@ def main():
     ko_img = get_pexels_image(ko_topic["keywords"], "ko")
     ko_url = publish_post(ko_svc, KO_BLOG_ID, ko_post["title"], ko_post["html_content"], ko_post["labels"], ko_img)
     print(f"✅ KO 블로그: {ko_url}")
-    send_telegram(f"""✅ <b>어머나! 발행 완료</b>
-📝 {ko_post["title"]}
-🔗 {ko_url}""")
+    send_telegram(f"✅ 어머나! 발행 완료\n📝 {ko_post['title']}\n🔗 {ko_url}")
 
-    # 한국어 숏츠 생성
     ko_plain = html_to_plain(ko_post["html_content"])
     try_generate_shorts(ko_post["title"], ko_plain, "ko", ko_url)
 
@@ -477,15 +496,14 @@ def main():
     en_img = get_pexels_image(en_topic["keywords"], "en")
     en_url = publish_post(en_svc, EN_BLOG_ID, en_post["title"], en_post["html_content"], en_post["labels"], en_img)
     print(f"✅ EN 블로그: {en_url}")
-    send_telegram(f"""✅ <b>OhmyG 발행 완료</b>
-📝 {en_post["title"]}
-🔗 {en_url}""")
+    send_telegram(f"✅ OhmyG 발행 완료\n📝 {en_post['title']}\n🔗 {en_url}")
 
-    # 영어 숏츠 생성
     en_plain = html_to_plain(en_post["html_content"])
     try_generate_shorts(en_post["title"], en_plain, "en", en_url)
 
     print("🎉 전체 완료!")
-    send_telegram("🎉 <b>오늘의 자동화 완료! KO + EN 블로그 + 숏츠 발행 완료 ✅")
+    send_telegram("🎉 오늘의 자동화 완료! KO + EN 블로그 + 숏츠 발행 완료")
+
+
 if __name__ == "__main__":
     main()
