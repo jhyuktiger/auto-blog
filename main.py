@@ -1,5 +1,6 @@
 """
-Auto Blog Generator v2.2
+Auto Blog Generator v2.3
+멀티 에이전트 파이프라인: 리서처 → 작가 → 검증
 블로그 발행 → 숏츠 자동 생성 연동
 """
 
@@ -36,13 +37,11 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
 
 def send_telegram(message):
-    """텔레그램 알림 발송 (plain text만 사용)"""
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return
     try:
         import urllib.request
         import urllib.parse
-        # HTML 태그 제거 후 plain text로 전송
         clean = re.sub(r'<[^>]+>', '', message)
         text = urllib.parse.quote(clean)
         url = (
@@ -93,7 +92,6 @@ def get_trending_en():
 
 
 KO_TOPICS = [
-    # ── AI/자동화 ──
     {"title": "Claude API로 자동화 도구 만드는 법 (초보자 완전 가이드)", "keywords": ["Claude API", "AI 자동화", "바이브코딩"], "category": "AI"},
     {"title": "바이브코딩이란? 2026년 개발자 없이 앱 만드는 방법", "keywords": ["바이브코딩", "Cursor", "bolt.new"], "category": "AI"},
     {"title": "ChatGPT vs Claude 실전 비교 어떤 AI가 더 유용한가", "keywords": ["ChatGPT", "Claude", "AI 비교"], "category": "AI"},
@@ -104,7 +102,6 @@ KO_TOPICS = [
     {"title": "AI 이미지 생성 도구 비교 Midjourney vs DALL-E vs Gemini", "keywords": ["AI 이미지", "Midjourney", "이미지 생성"], "category": "AI"},
     {"title": "챗GPT로 하루 2시간 업무 줄이는 실전 프롬프트 10가지", "keywords": ["챗GPT 프롬프트", "업무 효율", "AI 활용"], "category": "AI"},
     {"title": "노코드로 나만의 앱 만들기 bubble vs flutterflow 비교", "keywords": ["노코드", "bubble", "앱 개발"], "category": "AI"},
-    # ── 투자/재테크 ──
     {"title": "비트코인 2026 전망 반감기 이후 실제로 어떻게 될까", "keywords": ["비트코인 전망", "BTC 2026", "암호화폐"], "category": "투자"},
     {"title": "달러 ETF로 환율 헤지하는 방법 완전 정리", "keywords": ["달러 ETF", "환율 헤지", "달러 투자"], "category": "투자"},
     {"title": "미국 주식 배당금 세금 완벽 정리 2026 기준", "keywords": ["미국 주식 세금", "배당 세금", "해외 주식"], "category": "투자"},
@@ -114,56 +111,40 @@ KO_TOPICS = [
     {"title": "연금저축펀드 완전 정복 세액공제 최대로 받는 법", "keywords": ["연금저축", "세액공제", "노후준비"], "category": "투자"},
     {"title": "월급쟁이 재테크 로드맵 30대가 꼭 해야 할 5가지", "keywords": ["재테크 로드맵", "30대 투자", "월급 재테크"], "category": "투자"},
     {"title": "트럼프 관세 충격 한국 주식시장 어떻게 대응할까", "keywords": ["트럼프 관세", "한국 주식", "시장 대응"], "category": "투자"},
-    # ── CEO/인물 인사이트 ──
     {"title": "일론 머스크가 말하는 성공의 조건 핵심 명언 정리", "keywords": ["일론 머스크", "성공 명언", "동기부여"], "category": "인물"},
     {"title": "젠슨 황 엔비디아 CEO의 AI 미래 예측 2026 요약", "keywords": ["젠슨 황", "엔비디아", "AI 미래"], "category": "인물"},
     {"title": "샘 알트만이 말하는 AGI 시대 살아남는 법", "keywords": ["샘 알트만", "OpenAI", "AGI"], "category": "인물"},
-    {"title": "팔란티어 CEO 알렉스 카프 젊은이들에게 주는 조언", "keywords": ["팔란티어", "알렉스 카프", "성공 조언"], "category": "인물"},
     {"title": "워런 버핏 최신 주주서한 핵심 투자 철학 정리", "keywords": ["워런 버핏", "주주서한", "투자 철학"], "category": "인물"},
-    {"title": "손정의 소프트뱅크 AI 투자 전략 2026 완전 분석", "keywords": ["손정의", "소프트뱅크", "AI 투자"], "category": "인물"},
-    # ── 동기부여/자기계발 ──
     {"title": "하루 1시간으로 인생이 바뀌는 루틴 만드는 법", "keywords": ["하루 루틴", "자기계발", "습관 만들기"], "category": "자기계발"},
     {"title": "성공한 사람들이 절대 하지 않는 5가지 습관", "keywords": ["성공 습관", "자기계발", "동기부여"], "category": "자기계발"},
     {"title": "번아웃 극복하는 방법 실리콘밸리 CEO들의 비결", "keywords": ["번아웃", "극복 방법", "멘탈 관리"], "category": "자기계발"},
-    {"title": "돈보다 중요한 것 세계 최고 부자들이 후회하는 것들", "keywords": ["부자 마인드", "인생 후회", "성공의 의미"], "category": "자기계발"},
-    # ── 시니어 타겟 ──
     {"title": "60대 노후 준비 지금 당장 시작해야 할 3가지", "keywords": ["노후 준비", "60대 재테크", "연금"], "category": "시니어"},
     {"title": "스마트폰으로 돈 버는 법 시니어도 할 수 있는 부업", "keywords": ["시니어 부업", "스마트폰 수익", "노후 수입"], "category": "시니어"},
     {"title": "카카오페이 토스 안전하게 쓰는 방법 완전 정리", "keywords": ["카카오페이", "토스", "금융 앱 사용법"], "category": "시니어"},
 ]
 
 EN_TOPICS = [
-    # ── AI/Automation ──
     {"title": "Vibe Coding in 2026: Build Apps Without Writing Code", "keywords": ["vibe coding", "no-code", "AI development"], "category": "AI"},
     {"title": "Claude API Tutorial: Automate Any Task in 30 Minutes", "keywords": ["Claude API", "AI automation", "Python"], "category": "AI"},
     {"title": "Best AI Tools for Side Hustle in 2026 Ranked", "keywords": ["AI tools", "side hustle", "make money AI"], "category": "AI"},
     {"title": "How to Make 1000 Per Month Using Claude and n8n Automation", "keywords": ["Claude automation", "n8n", "passive income AI"], "category": "AI"},
     {"title": "Google AdSense Approval Guide 2026: What Actually Works", "keywords": ["Google AdSense", "AdSense approval", "blog monetization"], "category": "AI"},
     {"title": "10 ChatGPT Prompts That Actually Save You Hours Every Day", "keywords": ["ChatGPT prompts", "productivity", "AI workflow"], "category": "AI"},
-    {"title": "AI Agents Explained: How to Automate Your Entire Workflow in 2026", "keywords": ["AI agents", "workflow automation", "n8n"], "category": "AI"},
-    # ── Finance ──
     {"title": "Bitcoin Halving Cycle Explained: What History Says About 2026", "keywords": ["Bitcoin halving", "BTC price prediction", "crypto investing"], "category": "Finance"},
     {"title": "S&P 500 vs Bitcoin: 10-Year Return Comparison", "keywords": ["S&P 500", "Bitcoin investment", "portfolio"], "category": "Finance"},
     {"title": "Best High-Dividend ETFs for Passive Income in 2026", "keywords": ["dividend ETF", "passive income", "high yield"], "category": "Finance"},
     {"title": "Trump Tariffs Impact: How to Protect Your Portfolio Right Now", "keywords": ["Trump tariffs", "portfolio protection", "market volatility"], "category": "Finance"},
-    {"title": "Dollar Cost Averaging Bitcoin: 3-Year Simulation Results", "keywords": ["DCA Bitcoin", "crypto strategy", "dollar cost averaging"], "category": "Finance"},
-    {"title": "Index Fund vs ETF: Which Is Better for Long-Term Investing", "keywords": ["index fund", "ETF investing", "long term"], "category": "Finance"},
-    # ── CEO Insights ──
     {"title": "Elon Musk on Success: Key Lessons From His Latest Interviews", "keywords": ["Elon Musk", "success lessons", "entrepreneur mindset"], "category": "People"},
     {"title": "Jensen Huang Predicts the Future of AI: What He Said in 2026", "keywords": ["Jensen Huang", "Nvidia", "AI future"], "category": "People"},
     {"title": "Sam Altman on AGI: How to Survive and Thrive in the AI Era", "keywords": ["Sam Altman", "OpenAI", "AGI future"], "category": "People"},
     {"title": "Warren Buffett Latest Letter: Core Investment Wisdom for 2026", "keywords": ["Warren Buffett", "investment wisdom", "shareholder letter"], "category": "People"},
-    {"title": "Palantir CEO Alex Karp Advice for Young People: Full Summary", "keywords": ["Palantir", "Alex Karp", "career advice"], "category": "People"},
-    # ── Motivation/Growth ──
     {"title": "5 Habits Billionaires Share That Most People Ignore", "keywords": ["billionaire habits", "success mindset", "daily routine"], "category": "Motivation"},
     {"title": "How to Build a Morning Routine That Actually Changes Your Life", "keywords": ["morning routine", "productivity", "success habits"], "category": "Motivation"},
-    {"title": "Burnout Recovery: What Silicon Valley CEOs Do Differently", "keywords": ["burnout recovery", "CEO mindset", "mental health"], "category": "Motivation"},
     {"title": "What the World Most Successful People Regret Most", "keywords": ["success regrets", "life lessons", "mindset shift"], "category": "Motivation"},
 ]
 
 
 def is_duplicate(topic, published_titles):
-    """키워드 기반 유사도 체크 - 핵심 키워드가 2개 이상 겹치면 중복"""
     title_lower = topic["title"].lower()
     for pub in published_titles:
         pub_lower = pub.lower()
@@ -219,8 +200,216 @@ def select_topic(lang, published_titles):
     return {"title": f"{base['title']} ({today})", "keywords": base["keywords"], "category": base["category"], "is_trend": False}
 
 
+# ─────────────────────────────────────────────
+# 에이전트 1: 리서처
+# ─────────────────────────────────────────────
+def agent_researcher(topic, lang):
+    """주제에 맞는 실제 사례, 숫자, 트렌드를 조사·정리"""
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    today = datetime.date.today().strftime("%Y년 %m월 %d일" if lang == "ko" else "%B %d, %Y")
+
+    if lang == "ko":
+        prompt = f"""당신은 블로그 리서처입니다. 오늘({today}) 아래 주제로 글을 쓸 작가에게 리서치 브리핑을 작성해주세요.
+
+주제: {topic['title']}
+키워드: {', '.join(topic['keywords'])}
+
+다음을 반드시 포함한 브리핑을 작성하세요:
+1. 요즘 실제로 SNS/커뮤니티에서 이 주제가 왜 화제인지 (구체적 맥락)
+2. 독자가 "어머나!" 할 만한 숫자나 통계 3개 (예: "5년 만에 2배", "84%가 응답")
+3. 실생활 공감 포인트 2개 (40~60대 직장인/시니어 관점)
+4. 이 주제의 핵심 포인트 4~5개 (각 항목에 구체적 예시 포함)
+5. 독자가 오늘 당장 써먹을 수 있는 실천 팁 1개
+
+브리핑 형식으로 자유롭게 작성 (JSON 아님)"""
+    else:
+        prompt = f"""You are a blog researcher. Today ({today}), write a research briefing for a writer covering this topic.
+
+Topic: {topic['title']}
+Keywords: {', '.join(topic['keywords'])}
+
+Briefing must include:
+1. Why this topic is trending right now (specific context, recent events)
+2. 3 surprising numbers/stats that make readers say "OhmyG!" (e.g. "40% of professionals now...")
+3. 2 relatable pain points for busy professionals aged 40-60
+4. 4-5 core insights with specific examples and comparisons
+5. 1 concrete action reader can take TODAY
+
+Write freely as a briefing (not JSON)"""
+
+    print(f"🔍 리서처 에이전트 작동 중...")
+    msg = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1500,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    research = msg.content[0].text
+    print(f"✅ 리서치 완료 ({len(research)}자)")
+    return research
+
+
+# ─────────────────────────────────────────────
+# 에이전트 2: 작가
+# ─────────────────────────────────────────────
+def agent_writer(topic, research, lang):
+    """리서치 결과를 바탕으로 자연스러운 블로그 글 작성"""
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    today = datetime.date.today().strftime("%Y년 %m월 %d일" if lang == "ko" else "%B %d, %Y")
+
+    if lang == "ko":
+        system = """당신은 "어머나!" 채널의 인기 블로거입니다. 
+40~60대 독자가 카톡으로 공유하고 싶어지는 글을 씁니다.
+
+당신의 글쓰기 스타일:
+- 친한 언니/오빠가 커피 마시며 알려주는 느낌
+- 첫 문장부터 독자를 낚는 훅 (숫자, 반전, 공감)
+- "요즘 ~하는 사람 없잖아", "솔직히 말하면", "근데 나는 이게 궁금했어" 같은 자연스러운 구어체
+- 각 섹션마다 "이게 왜 중요하냐면~", "예를 들어~" 로 풀어주기
+- 마지막은 독자가 오늘 당장 할 수 있는 딱 1가지로 마무리
+
+HTML 태그 사용: h2, h3, p, ul, li, strong
+분량: 2000~2500자"""
+
+        prompt = f"""오늘: {today}
+제목: {topic['title']}
+
+[리서처가 준비한 자료]
+{research}
+
+위 자료를 바탕으로 블로그 글을 작성하세요.
+리서처 자료의 숫자, 사례, 공감 포인트를 반드시 글 안에 녹여주세요.
+
+순수 JSON만 응답:
+{{"title": "제목", "html_content": "HTML본문", "labels": ["태그1","태그2","태그3"]}}"""
+
+    else:
+        system = """You are a popular blogger for the OhmyG channel.
+You write content that busy professionals aged 40-60 actually want to share.
+
+Your writing style:
+- Like a smart friend giving real talk over coffee
+- Hook from the first sentence (surprising number, counterintuitive fact, relatable struggle)
+- Natural flow: "Here's what most people get wrong...", "The number that surprised me was...", "Try this today:"
+- Each section has a concrete example or comparison
+- End with exactly ONE thing the reader can do right now
+
+Use HTML tags: h2, h3, p, ul, li, strong
+Length: 1000-1400 words"""
+
+        prompt = f"""Today: {today}
+Title: {topic['title']}
+
+[Research Briefing]
+{research}
+
+Write a blog post using the research above.
+The numbers, examples, and relatable points from the research MUST appear in the post.
+
+Pure JSON only:
+{{"title": "title", "html_content": "HTML content", "labels": ["tag1","tag2","tag3"]}}"""
+
+    print(f"✍️ 작가 에이전트 작동 중...")
+    for attempt in range(3):
+        msg = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=8096,
+            system=system,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        raw = msg.content[0].text
+        try:
+            start = raw.find("{")
+            end = raw.rfind("}") + 1
+            json_str = raw[start:end]
+            json_str = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', json_str)
+            result = json.loads(json_str)
+            print(f"✅ 글 작성 완료 ({len(result.get('html_content',''))}자)")
+            return result
+        except json.JSONDecodeError:
+            try:
+                cleaned = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', json_str)
+                result = json.loads(cleaned)
+                print(f"✅ 글 작성 완료 ({len(result.get('html_content',''))}자)")
+                return result
+            except Exception:
+                print(f"⚠️ JSON 파싱 실패 (시도 {attempt+1}/3), 재생성...")
+                time.sleep(2)
+
+    title = topic["title"]
+    return {"title": title, "html_content": f"<h2>{title}</h2><p>준비 중입니다.</p>", "labels": topic.get("keywords", ["AI"])[:3]}
+
+
+# ─────────────────────────────────────────────
+# 에이전트 3: 검증자
+# ─────────────────────────────────────────────
+def agent_validator(post, lang):
+    """글 품질 점수 + AI 티 나는 표현 체크"""
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+    if lang == "ko":
+        prompt = f"""블로그 글을 검토하고 0~10점으로 평가하세요.
+
+제목: {post['title']}
+본문 미리보기: {post['html_content'][:600]}
+
+평가 기준:
+- 첫 문장이 독자를 끌어당기는가? (2점)
+- 구체적인 숫자/사례가 있는가? (2점)
+- "살펴보겠습니다", "알아보겠습니다" 같은 AI 티 표현이 없는가? (2점)
+- 40~60대가 공감할 만한 내용인가? (2점)
+- 오늘 당장 쓸 수 있는 실천 팁이 있는가? (2점)
+
+숫자 하나만 응답 (0~10)"""
+    else:
+        prompt = f"""Review this blog post and score it 0-10.
+
+Title: {post['title']}
+Preview: {post['html_content'][:600]}
+
+Criteria:
+- Does the first sentence hook the reader? (2pts)
+- Are there specific numbers/examples? (2pts)
+- No AI-sounding phrases like "In this article", "Let's dive in"? (2pts)
+- Relatable to busy professionals aged 40-60? (2pts)
+- One concrete action to take today? (2pts)
+
+Reply with a single number only (0-10)"""
+
+    print(f"🔎 검증 에이전트 작동 중...")
+    msg = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=10,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    try:
+        score = int(msg.content[0].text.strip())
+        print(f"📊 품질: {score}/10")
+        return score
+    except Exception:
+        return 7
+
+
+def generate_post(topic, lang):
+    """멀티 에이전트 파이프라인: 리서처 → 작가 → 검증"""
+    # 1단계: 리서처
+    research = agent_researcher(topic, lang)
+    time.sleep(1)
+
+    # 2단계: 작가
+    post = agent_writer(topic, research, lang)
+    time.sleep(1)
+
+    # 3단계: 검증 → 7점 미만이면 재작성 (리서치는 재활용)
+    score = agent_validator(post, lang)
+    if score < 7:
+        print(f"⚠️ 점수 미달 ({score}점), 재작성...")
+        time.sleep(2)
+        post = agent_writer(topic, research, lang)
+
+    return post
+
+
 def get_pexels_image(keywords, lang):
-    """Pixabay API로 블로그 썸네일 이미지 URL 가져오기"""
     try:
         import urllib.request
         import urllib.parse
@@ -238,9 +427,7 @@ def get_pexels_image(keywords, lang):
             "ChatGPT": "chatbot AI technology",
             "코딩": "programming code laptop",
             "앱": "smartphone app mobile",
-            "소프트웨어": "software development",
             "비트코인": "bitcoin cryptocurrency coins",
-            "코인": "cryptocurrency digital money",
             "주식": "stock market trading charts",
             "ETF": "investment portfolio finance",
             "투자": "investment money growth",
@@ -249,28 +436,20 @@ def get_pexels_image(keywords, lang):
             "배당": "dividend income money",
             "연금": "retirement pension savings",
             "노후": "retirement elderly couple",
-            "절세": "tax saving finance",
             "일론 머스크": "electric car tesla technology",
             "젠슨 황": "GPU chip semiconductor",
             "샘 알트만": "AI startup office",
             "워런 버핏": "investment stocks newspaper",
-            "팔란티어": "data analytics office",
-            "손정의": "technology investment startup",
             "번아웃": "burnout stress tired office",
             "동기부여": "motivation inspiration success",
             "자기계발": "personal growth books reading",
             "성공": "success achievement winner",
             "습관": "morning routine healthy lifestyle",
-            "루틴": "morning routine workout",
-            "멘탈": "mental health mindfulness calm",
             "시니어": "senior couple happy lifestyle",
             "스마트폰": "smartphone elderly hands",
-            "카카오": "mobile payment smartphone",
             "트럼프": "business politics office",
             "관세": "trade shipping containers port",
             "경제": "economy business growth chart",
-            "금리": "bank interest rate finance",
-            "애드센스": "laptop blogger writing",
             "블로그": "blogger writing laptop coffee",
             "수익": "income money laptop online",
             "부업": "side hustle freelance laptop",
@@ -286,7 +465,6 @@ def get_pexels_image(keywords, lang):
             data = _json.loads(resp.read())
         hits = data.get("hits", [])
         if hits:
-            import random
             photo = random.choice(hits[:10])
             img_url = photo["webformatURL"]
             print(f"🖼️ 블로그 이미지: {query} (Pixabay)")
@@ -294,117 +472,6 @@ def get_pexels_image(keywords, lang):
     except Exception as e:
         print(f"⚠️ Pixabay 이미지 실패: {e}")
     return None
-
-
-def generate_post(topic, lang):
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    today = datetime.date.today().strftime("%Y년 %m월 %d일" if lang == "ko" else "%B %d, %Y")
-    is_trend = topic.get("is_trend", False)
-    if lang == "ko":
-        system = """당신은 "어머나!" 채널의 전문 블로거입니다. 40~60대 직장인/시니어 독자를 위해 AI·재테크·생활정보를 쉽고 친근하게 씁니다.
-
-[독자 특성]
-- 40~60대 직장인, 은퇴 준비 중인 시니어
-- 어려운 용어보다 쉬운 설명 선호
-- 실생활에 바로 적용 가능한 정보 원함
-- 카카오톡으로 공유하고 싶은 콘텐츠
-
-[글쓰기 규칙]
-1. 분량: 2000~3000자, h2/h3/p/ul/li 태그 사용
-2. 어미 5가지를 아래 비율로 혼용:
-   - "~다" (30%): 단정적 서술
-   - "~요" (25%): 친근한 설명
-   - "~죠" (15%): 공감 유도
-   - "~거든요" (15%): 구어체 설명
-   - "~네요" (15%): 감탄/발견
-3. 같은 어미 2문장 연속 금지 → 반드시 다른 어미로 변경
-4. 첫 문장은 숫자나 질문으로 시작 (예: "월 100만원을 더 버는 방법이 있다면?")
-
-[절대 금지 표현]
-- "살펴보겠습니다", "알아보겠습니다", "정리해보겠습니다"
-- "이번 글에서는", "~해 보겠습니다", "~드리겠습니다"
-- "중요합니다", "필요합니다" (→ "중요해요", "필요해요"로 대체)
-- "하였습니다", "되었습니다" (→ "했어요", "됐어요"로 대체)
-- "본 포스팅", "해당 내용", "위의 내용"
-- 전문용어 남발 (반드시 쉬운 말로 풀어서 설명)
-
-[콘텐츠 품질 기준]
-- 독자가 읽고 나서 "어머나! 이런 게 있었어?" 반응 유도
-- 실생활 예시 반드시 포함 (숫자, 사례, 비교)
-- 각 소제목 아래 3~5개 핵심 포인트
-- 마지막 단락: 오늘 당장 실천할 수 있는 1가지 행동 제시
-- 투자 권유 금지, 허위 정보 금지, 면책조항 필수"""
-        prompt = f"오늘: {today}\n{'[트렌딩 주제]' if is_trend else ''}\n제목: {topic['title']}\n키워드: {', '.join(topic['keywords'])}\n\n순수 JSON만 응답:\n{{\"title\": \"제목\", \"html_content\": \"HTML본문\", \"labels\": [\"태그1\",\"태그2\",\"태그3\"]}}"
-    else:
-        system = """You are a blogger for OhmyG channel, writing for professionals aged 40-60 interested in AI, finance, and self-improvement.
-
-[Reader Profile]
-- Busy professionals and pre-retirees aged 40-60
-- Want practical, actionable information
-- Prefer clear explanations over jargon
-- Share content they find genuinely useful
-
-[Writing Rules]
-1. Length: 1000-1500 words, use h2/h3/p/ul/li tags
-2. Start with a surprising number or bold question (e.g. "What if you could save $500/month with one simple change?")
-3. Write like a smart friend giving real advice, not a textbook
-4. Mix short punchy sentences with longer explanatory ones
-5. Include at least one real example or comparison with numbers
-6. End with one concrete action reader can take TODAY
-
-[Absolute Forbidden]
-- "In this article", "Let's dive in", "In conclusion, we explored"
-- "It's worth noting that", "As we can see", "Without further ado"
-- "Leverage", "Utilize", "Robust", "Delve into" (too corporate/AI-sounding)
-- Vague advice without specific numbers or examples
-- Overly formal or academic tone
-
-[Quality Standard]
-- Reader reaction should be: "OhmyG! I didn't know that!"
-- Every section needs a practical takeaway
-- No investment advice, no false info, disclaimer required"""
-        prompt = f"Today: {today}\n{'[Trending topic]' if is_trend else ''}\nTitle: {topic['title']}\nKeywords: {', '.join(topic['keywords'])}\n\nPure JSON only:\n{{\"title\": \"title\", \"html_content\": \"HTML content\", \"labels\": [\"tag1\",\"tag2\",\"tag3\"]}}"
-
-    for attempt in range(3):
-        msg = client.messages.create(
-            model="claude-haiku-4-5-20251001", max_tokens=8096,
-            system=system, messages=[{"role": "user", "content": prompt}]
-        )
-        raw = msg.content[0].text
-        try:
-            start = raw.find("{")
-            end = raw.rfind("}") + 1
-            json_str = raw[start:end]
-            json_str = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', json_str)
-            return json.loads(json_str)
-        except json.JSONDecodeError:
-            try:
-                cleaned = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', json_str)
-                return json.loads(cleaned)
-            except Exception:
-                print(f"⚠️ JSON 파싱 실패 (시도 {attempt+1}/3), 재생성...")
-                time.sleep(2)
-
-    title = topic["title"]
-    return {"title": title, "html_content": f"<h2>{title}</h2><p>준비 중입니다.</p>", "labels": topic.get("keywords", ["AI"])[:3]}
-
-
-def evaluate_post(post, lang):
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    if lang == "ko":
-        prompt = f"블로그 글 품질 0~10점:\n제목: {post['title']}\n미리보기: {post['html_content'][:400]}\n숫자만 응답"
-    else:
-        prompt = f"Rate blog 0-10:\nTitle: {post['title']}\nPreview: {post['html_content'][:400]}\nNumber only"
-    msg = client.messages.create(
-        model="claude-haiku-4-5-20251001", max_tokens=10,
-        messages=[{"role": "user", "content": prompt}]
-    )
-    try:
-        score = int(msg.content[0].text.strip())
-        print(f"📊 품질: {score}/10")
-        return score
-    except Exception:
-        return 7
 
 
 def get_blogger_service(rt, ci, cs):
@@ -422,7 +489,7 @@ def publish_post(service, blog_id, title, html_content, labels, img_data=None):
         img_html = (
             f'<div style="text-align:center;margin-bottom:24px;">'
             f'<img src="{img_data["url"]}" alt="{title}" style="max-width:100%;border-radius:8px;"/>'
-            f'<p style="font-size:12px;color:#888;">Photo by {img_data["credit"]} on Pexels</p>'
+            f'<p style="font-size:12px;color:#888;">Photo by {img_data["credit"]} on Pixabay</p>'
             f'</div>'
         )
         html_content = img_html + html_content
@@ -431,11 +498,7 @@ def publish_post(service, blog_id, title, html_content, labels, img_data=None):
     return result.get("url", "")
 
 
-# ─────────────────────────────────────────────
-# 숏츠 연동 (블로그 발행 후 자동 실행)
-# ─────────────────────────────────────────────
 def try_generate_shorts(title, content, lang, blog_url):
-    """숏츠 생성 시도 - 실패해도 블로그 발행에 영향 없음"""
     if not SHORTS_ENABLED:
         print("⏭️ 숏츠 스킵 (YouTube secrets 없음)")
         return None
@@ -444,7 +507,6 @@ def try_generate_shorts(title, content, lang, blog_url):
         os.environ["YOUTUBE_REFRESH_TOKEN"] = YOUTUBE_REFRESH_TOKEN
         os.environ["YOUTUBE_CLIENT_ID"] = YOUTUBE_CLIENT_ID
         os.environ["YOUTUBE_CLIENT_SECRET"] = YOUTUBE_CLIENT_SECRET
-
         from shorts_generator import generate_shorts
         shorts_url = generate_shorts(title, content, lang, blog_url)
         print(f"🎬 숏츠 완료: {shorts_url}")
@@ -455,53 +517,48 @@ def try_generate_shorts(title, content, lang, blog_url):
 
 
 def html_to_plain(html_content):
-    """HTML 태그 제거해서 숏츠 스크립트용 텍스트 추출"""
     text = re.sub(r'<[^>]+>', ' ', html_content)
     text = re.sub(r'\s+', ' ', text).strip()
     return text[:800]
 
 
 def main():
-    print("🚀 Auto Blog Generator v2.2 (블로그 + 숏츠)")
+    print("🚀 Auto Blog Generator v2.3 (멀티 에이전트)")
     print(f"🎬 숏츠 자동화: {'✅ 활성화' if SHORTS_ENABLED else '⏭️ 비활성화'}")
 
     # ── 한국어 블로그 ──
+    print("\n" + "="*40)
+    print("🇰🇷 한국어 블로그 시작")
+    print("="*40)
     ko_svc = get_blogger_service(KO_BLOGGER_REFRESH_TOKEN, KO_BLOGGER_CLIENT_ID, KO_BLOGGER_CLIENT_SECRET)
     ko_pub = get_published_titles(ko_svc, KO_BLOG_ID)
     ko_topic = select_topic("ko", ko_pub)
-    print(f"📝 KO: {ko_topic['title']} {'[트렌드]' if ko_topic.get('is_trend') else '[고정]'}")
+    print(f"📝 주제: {ko_topic['title']} {'[트렌드]' if ko_topic.get('is_trend') else '[고정]'}")
     ko_post = generate_post(ko_topic, "ko")
-    if evaluate_post(ko_post, "ko") < 7:
-        print("⚠️ 재생성")
-        time.sleep(2)
-        ko_post = generate_post(ko_topic, "ko")
     ko_img = get_pexels_image(ko_topic["keywords"], "ko")
     ko_url = publish_post(ko_svc, KO_BLOG_ID, ko_post["title"], ko_post["html_content"], ko_post["labels"], ko_img)
     print(f"✅ KO 블로그: {ko_url}")
     send_telegram(f"✅ 어머나! 발행 완료\n📝 {ko_post['title']}\n🔗 {ko_url}")
-
     ko_plain = html_to_plain(ko_post["html_content"])
     try_generate_shorts(ko_post["title"], ko_plain, "ko", ko_url)
 
     # ── 영어 블로그 ──
+    print("\n" + "="*40)
+    print("🇺🇸 영어 블로그 시작")
+    print("="*40)
     en_svc = get_blogger_service(EN_BLOGGER_REFRESH_TOKEN, EN_BLOGGER_CLIENT_ID, EN_BLOGGER_CLIENT_SECRET)
     en_pub = get_published_titles(en_svc, EN_BLOG_ID)
     en_topic = select_topic("en", en_pub)
-    print(f"📝 EN: {en_topic['title']} {'[트렌드]' if en_topic.get('is_trend') else '[고정]'}")
+    print(f"📝 주제: {en_topic['title']} {'[트렌드]' if en_topic.get('is_trend') else '[고정]'}")
     en_post = generate_post(en_topic, "en")
-    if evaluate_post(en_post, "en") < 7:
-        print("⚠️ 재생성")
-        time.sleep(2)
-        en_post = generate_post(en_topic, "en")
     en_img = get_pexels_image(en_topic["keywords"], "en")
     en_url = publish_post(en_svc, EN_BLOG_ID, en_post["title"], en_post["html_content"], en_post["labels"], en_img)
     print(f"✅ EN 블로그: {en_url}")
     send_telegram(f"✅ OhmyG 발행 완료\n📝 {en_post['title']}\n🔗 {en_url}")
-
     en_plain = html_to_plain(en_post["html_content"])
     try_generate_shorts(en_post["title"], en_plain, "en", en_url)
 
-    print("🎉 전체 완료!")
+    print("\n🎉 전체 완료!")
     send_telegram("🎉 오늘의 자동화 완료! KO + EN 블로그 + 숏츠 발행 완료")
 
 
