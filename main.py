@@ -35,9 +35,6 @@ SHORTS_ENABLED = all([GEMINI_API_KEY, YOUTUBE_REFRESH_TOKEN, YOUTUBE_CLIENT_ID, 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
-# ─────────────────────────────────────────────
-# RSS 피드 목록 (무료, API 키 불필요)
-# ─────────────────────────────────────────────
 KO_RSS_FEEDS = [
     "https://news.google.com/rss/search?q=AI+인공지능&hl=ko&gl=KR&ceid=KR:ko",
     "https://news.google.com/rss/search?q=ChatGPT+Claude+AI도구&hl=ko&gl=KR&ceid=KR:ko",
@@ -58,7 +55,7 @@ EN_RSS_FEEDS = [
 
 
 def fetch_rss_news(feeds, max_items=15):
-    """RSS 피드에서 최신 뉴스 수집 (외부 라이브러리 불필요)"""
+    """RSS 피드에서 최신 뉴스 수집 (utf-8 인코딩 처리)"""
     import urllib.request
     import xml.etree.ElementTree as ET
 
@@ -70,22 +67,25 @@ def fetch_rss_news(feeds, max_items=15):
                 headers={"User-Agent": "Mozilla/5.0 (compatible; RSS reader)"}
             )
             with urllib.request.urlopen(req, timeout=10) as resp:
-                xml_data = resp.read()
-            root = ET.fromstring(xml_data)
+                raw = resp.read()
+
+            # ✅ utf-8로 디코딩 (한국어 특수문자 처리)
+            xml_str = raw.decode("utf-8", errors="replace")
+            root = ET.fromstring(xml_str)
+
             for item in root.findall(".//item")[:5]:
                 title_el = item.find("title")
                 desc_el = item.find("description")
                 title = title_el.text if title_el is not None else ""
                 desc = desc_el.text if desc_el is not None else ""
-                title = re.sub(r'<[^>]+>', '', title).strip()
-                desc = re.sub(r'<[^>]+>', '', desc).strip()
+                title = re.sub(r'<[^>]+>', '', title or '').strip()
+                desc = re.sub(r'<[^>]+>', '', desc or '').strip()
                 if title:
                     news_items.append({"title": title, "desc": desc[:200]})
         except Exception as e:
             print(f"⚠️ RSS 수집 실패: {e}")
             continue
 
-    # 중복 제거
     seen = set()
     unique = []
     for item in news_items:
@@ -245,11 +245,7 @@ def select_topic(lang, published_titles):
     return {"title": f"{base['title']} ({today})", "keywords": base["keywords"], "category": base["category"], "is_trend": False}
 
 
-# ─────────────────────────────────────────────
-# 에이전트 1: RSS 리서처
-# ─────────────────────────────────────────────
 def agent_researcher(topic, lang, news_items):
-    """오늘의 실제 뉴스 + 주제 기반 리서치 브리핑 작성"""
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     today = datetime.date.today().strftime("%Y년 %m월 %d일" if lang == "ko" else "%B %d, %Y")
 
@@ -307,11 +303,7 @@ Write freely as a briefing (not JSON)"""
     return research
 
 
-# ─────────────────────────────────────────────
-# 에이전트 2: 작가
-# ─────────────────────────────────────────────
 def agent_writer(topic, research, lang):
-    """리서치 결과를 바탕으로 자연스러운 블로그 글 작성"""
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     today = datetime.date.today().strftime("%Y년 %m월 %d일" if lang == "ko" else "%B %d, %Y")
 
@@ -398,9 +390,6 @@ Pure JSON only:
     return {"title": title, "html_content": f"<h2>{title}</h2><p>준비 중입니다.</p>", "labels": topic.get("keywords", ["AI"])[:3]}
 
 
-# ─────────────────────────────────────────────
-# 에이전트 3: 검증자
-# ─────────────────────────────────────────────
 def agent_validator(post, lang):
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
@@ -448,27 +437,17 @@ Single number only (0-10)"""
 
 
 def generate_post(topic, lang):
-    """멀티 에이전트 파이프라인: RSS 수집 → 리서처 → 작가 → 검증"""
-
-    # 0단계: 오늘의 뉴스 수집
     feeds = KO_RSS_FEEDS if lang == "ko" else EN_RSS_FEEDS
     news_items = fetch_rss_news(feeds)
-
-    # 1단계: 리서처 (뉴스 기반 브리핑)
     research = agent_researcher(topic, lang, news_items)
     time.sleep(1)
-
-    # 2단계: 작가
     post = agent_writer(topic, research, lang)
     time.sleep(1)
-
-    # 3단계: 검증 → 7점 미만이면 재작성
     score = agent_validator(post, lang)
     if score < 7:
         print(f"⚠️ 점수 미달 ({score}점), 재작성...")
         time.sleep(2)
         post = agent_writer(topic, research, lang)
-
     return post
 
 
@@ -579,7 +558,6 @@ def main():
     print("🚀 Auto Blog Generator v2.4 (RSS 멀티 에이전트)")
     print(f"🎬 숏츠 자동화: {'✅ 활성화' if SHORTS_ENABLED else '⏭️ 비활성화'}")
 
-    # ── 한국어 블로그 ──
     print("\n" + "="*40)
     print("🇰🇷 한국어 블로그 시작")
     print("="*40)
@@ -595,7 +573,6 @@ def main():
     ko_plain = html_to_plain(ko_post["html_content"])
     try_generate_shorts(ko_post["title"], ko_plain, "ko", ko_url)
 
-    # ── 영어 블로그 ──
     print("\n" + "="*40)
     print("🇺🇸 영어 블로그 시작")
     print("="*40)
