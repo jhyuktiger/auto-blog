@@ -10,9 +10,10 @@ Shorts Generator v4.2
 import os
 import re
 import json
+import asyncio
 import datetime
 import anthropic
-from gtts import gTTS
+import edge_tts
 from PIL import Image, ImageDraw, ImageFont
 try:
     from moviepy.editor import ImageClip, AudioFileClip, CompositeVideoClip
